@@ -148,7 +148,7 @@ GigSecure embeds machine learning at three critical layers, each serving a disti
 
 Parametric insurance can be vulnerable to opportunistic behaviour. GigSecure implements a multi‑layered fraud detection system to protect the pool and ensure fair payouts.
 
-### 🚨 Adversarial Defense & Anti-Spoofing Strategy (24-Hour Crisis Response)
+### 🚨 Adversarial Defense & Anti-Spoofing Strategy
 
 With the rise of coordinated syndicates using advanced GPS-spoofing to drain liquidity pools, basic geospatial fences are obsolete. GigSecure defends the treasury using an **Unsupervised Isolation Forest** anomaly detection model combined with granular device telemetry.
 
