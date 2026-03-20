@@ -3,6 +3,10 @@
   <h1>GigSecure</h1>
   <p><b>AI-Powered Parametric Income Protection strictly for Q-Commerce Gig Riders.</b></p>
   <p><i>Because 10-minute deliveries shouldn't mean 10-minute bankruptcies.</i></p>
+
+  <br />
+
+  [![Live Demo](https://img.shields.io/badge/Demo-Live_Now-blueviolet?style=for-the-badge&logo=vercel)](YOUR_VERCEL_URL_HERE)
 </div>
 
 ---
