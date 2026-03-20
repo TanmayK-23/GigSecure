@@ -355,7 +355,7 @@ gigsecure/
 | No vehicle repair coverage | Strictly excluded |
 | Weekly pricing model | All plans priced and structured weekly |
 | Income loss only | All payouts calculated as lost hourly/daily earnings |
-| Delivery persona focus | Food delivery partners (Zomato/Swiggy) only |
+| Delivery persona focus | Q-commerce & multi-platform delivery partners operating across Zepto, Blinkit, Swiggy, Zomato, and similar platforms |
 
 ---
 
