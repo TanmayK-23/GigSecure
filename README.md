@@ -19,7 +19,8 @@
 8. [Running the Application Locally](#running-the-application-locally)
 9. [Repository Structure](#repository-structure)
 10. [6‑Week Development Roadmap](#6week-development-roadmap)
-11. [Team Details](#team-details)
+11. [Constraints Compliance](#constraints-compliance)
+12. [Team Details](#team-details)
 
 ---
 
@@ -341,6 +342,20 @@ gigsecure/
   - 5‑min demo video (trigger → auto‑claim → payout + fraud detection demo).  
   - Final pitch deck (PDF) covering persona, AI architecture, business viability.  
   - Source code with all features working.
+
+---
+
+## Constraints Compliance
+
+| Constraint | GigShield Compliance |
+|-----------|---------------------|
+| No health insurance coverage | Strictly excluded |
+| No life insurance coverage | Strictly excluded |
+| No accident/medical bill coverage | Strictly excluded |
+| No vehicle repair coverage | Strictly excluded |
+| Weekly pricing model | All plans priced and structured weekly |
+| Income loss only | All payouts calculated as lost hourly/daily earnings |
+| Delivery persona focus | Food delivery partners (Zomato/Swiggy) only |
 
 ---
 
