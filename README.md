@@ -347,7 +347,7 @@ gigsecure/
 
 ## Constraints Compliance
 
-| Constraint | GigShield Compliance |
+| Constraint | GigSecure Compliance |
 |-----------|---------------------|
 | No health insurance coverage | Strictly excluded |
 | No life insurance coverage | Strictly excluded |
