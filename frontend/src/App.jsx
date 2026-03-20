@@ -59,7 +59,7 @@ function RequireAdmin({ children }) {
 
 function AlreadyAuthed() {
   const { isAuthenticated, isAdmin } = useAuth();
-  if (isAuthenticated) return <Navigate to={isAdmin ? '/admin' : '/rider'} replace />;
+  if (isAuthenticated) return <Navigate to={isAdmin ? '/admin' : '/onboarding'} replace />;
   return null;
 }
 

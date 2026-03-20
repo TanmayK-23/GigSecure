@@ -7,7 +7,6 @@ const policyRoutes = require('./routes/policies');
 const claimRoutes = require('./routes/claims');
 const triggerRoutes = require('./routes/triggers');
 const adminRoutes = require('./routes/admin');
-const { startTriggerEngine } = require('./services/triggerEngine');
 
 const app = express();
 

@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/shield-check.svg" alt="GigSecure Logo" width="80" height="80">
+  <img src="custom-logo.png" alt="GigSecure Logo" width="120">
   <h1>GigSecure</h1>
   <p><b>AI-Powered Parametric Income Protection strictly for Q-Commerce Gig Riders.</b></p>
   <p><i>Because 10-minute deliveries shouldn't mean 10-minute bankruptcies.</i></p>
@@ -114,6 +114,33 @@ GigSecure embeds machine learning at three critical layers, each serving a disti
 - **Features:** Speed between consecutive pings, deviation from historical route patterns, time of day consistency  
 - **Output:** Anomaly Score (0–1)  
 - **Usage:** Any claim with anomaly score > threshold is flagged for manual admin review instead of auto‑payment.
+
+---
+
+## App Screenshots
+
+*Showcasing the Phase 1 Demo MVP running locally.*
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center"><b>Rider Dashboard</b><br>(Active Policy & Recent Payouts)</td>
+      <td align="center"><b>AI Risk Profiling</b><br>(Dynamic Rating & Quoting)</td>
+    </tr>
+    <tr>
+      <td><img src="docs/screenshot-dashboard.png" alt="Rider Dashboard" width="400"></td>
+      <td><img src="docs/screenshot-risk.png" alt="AI Risk Profile" width="400"></td>
+    </tr>
+    <tr>
+      <td align="center"><b>Earnings Protected</b><br>(Chart.js Data Viz)</td>
+      <td align="center"><b>Admin Command Center</b><br>(Fraud Alerts & ARIMA Forecast)</td>
+    </tr>
+    <tr>
+      <td><img src="docs/screenshot-earnings.png" alt="Earnings Chart" width="400"></td>
+      <td><img src="docs/screenshot-admin.png" alt="Admin Dashboard" width="400"></td>
+    </tr>
+  </table>
+</div>
 
 ---
 
@@ -300,10 +327,11 @@ gigsecure/
 
 | Name | Role | Responsibilities |
 |------|------|------------------|
-| [Name] | Project Lead / Full‑Stack | Architecture, API integration, overall coordination |
-| [Name] | AI/ML Engineer | Model development (risk, fraud, forecasting) and Flask microservice |
-| [Name] | Frontend Developer | React PWA, UI/UX, dashboard implementations |
-| [Name] | Backend Developer | Node.js API, trigger engine, database design |
+| [Kushagra Srivastava] | Project Lead | Architecture, API integration, overall coordination |
+| [Tanmay Kumar] | AI/ML Engineer | Generative AI & XGBoost/ARIMA modeling |
+| [Anshul Pagar] | Backend Developer | Node.js API, trigger engine, database design |
+| [CS Ganeshan] | Frontend Developer | React PWA, User Experience (UX), dashboard implementation |
+| [Aditi Thakur] | Product & UI/UX Designer | UI design tokens, research, and presentation |
 
 *All team members contribute to ideation, testing, and documentation.*
 
