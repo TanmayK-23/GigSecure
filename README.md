@@ -6,7 +6,7 @@
 
   <br />
 
-  [![Live Demo](https://img.shields.io/badge/Demo-Live_Now-blueviolet?style=for-the-badge&logo=vercel)](YOUR_VERCEL_URL_HERE)
+  [![Live Demo](https://img.shields.io/badge/Demo-Live_Now-blueviolet?style=for-the-badge&logo=vercel)](https://gigsecure-weld.vercel.app)
 </div>
 
 ---
