@@ -13,12 +13,13 @@
 2. [Proposed Solution (Detailed)](#proposed-solution-detailed)
 3. [AI/ML Integration (Detailed)](#aiml-integration-detailed)
 4. [Fraud Detection](#fraud-detection)
-5. [System Architecture](#system-architecture)
-6. [Tech Stack](#tech-stack)
-7. [Running the Application Locally](#running-the-application-locally)
-8. [Repository Structure](#repository-structure)
-9. [6‑Week Development Roadmap](#6week-development-roadmap)
-10. [Team Details](#team-details)
+5. [Adversarial Defense & Anti-Spoofing Strategy](#adversarial-defense--anti-spoofing-strategy)
+6. [System Architecture](#system-architecture)
+7. [Tech Stack](#tech-stack)
+8. [Running the Application Locally](#running-the-application-locally)
+9. [Repository Structure](#repository-structure)
+10. [6‑Week Development Roadmap](#6week-development-roadmap)
+11. [Team Details](#team-details)
 
 ---
 
@@ -148,7 +149,27 @@ GigSecure embeds machine learning at three critical layers, each serving a disti
 
 Parametric insurance can be vulnerable to opportunistic behaviour. GigSecure implements a multi‑layered fraud detection system to protect the pool and ensure fair payouts.
 
-### 🚨 Adversarial Defense & Anti-Spoofing Strategy
+1. **GPS Spoofing Detection (Baseline)**  
+   - *Method:* Analyse consecutive location points. If the calculated speed exceeds a realistic threshold (e.g., 50 km in 3 minutes), the claim is marked suspicious.  
+   - *Mitigation:* Flagged claims appear in admin queue; auto‑payout withheld.
+
+2. **Fake Weather Claims**  
+   - *Method:* Cross‑reference claim time and zone with a secondary weather data source (mock or real) to verify that the claimed trigger actually occurred.  
+   - *Mitigation:* Mismatched data triggers manual review.
+
+3. **Duplicate Claim Prevention**  
+   - *Method:* Check for identical rider, same trigger type, same time window, and same event ID.  
+   - *Mitigation:* Duplicates are automatically rejected, and the rider receives a notification explaining the rejection.
+
+4. **Pattern‑of‑Life Analysis**  
+   - *Method:* Compare rider’s historical activity (hours worked, zones frequented) against their behaviour during the claimed disruption.  
+   - *Mitigation:* If a rider appears only during high‑risk events (e.g., logs in only when it starts raining), their future claims may be subject to higher scrutiny.
+
+All fraud flags are visualised in the **Admin Dashboard** with options to approve, reject, or suspend user accounts.
+
+---
+
+### Adversarial Defense & Anti-Spoofing Strategy
 
 With the rise of coordinated syndicates using advanced GPS-spoofing to drain liquidity pools, basic geospatial fences are obsolete. GigSecure defends the treasury using an **Unsupervised Isolation Forest** anomaly detection model combined with granular device telemetry.
 
@@ -167,26 +188,6 @@ GigSecure operates on a "Trust, but Verify asynchronously" mechanism so honest w
 - **Soft-Flagging:** If an Anomaly Score crosses the threshold, the claim is NOT rejected. It enters a `PENDING_REVIEW` state rather than auto-paying.
 - **Grace Period & Asynchronous Proof:** The flagged rider receives a notification about a "security delay" and is requested to submit a quick 5-second live camera pan or a final delivery screenshot when their network stabilizes.
 - **Trust Score Routing:** Riders with a historically strong, verified track record (high trust score generated during Onboarding risk profiling) bypass initial strict filters, minimizing friction for our most loyal users.
-
-### Standard Detection Mechanisms
-
-1. **GPS Spoofing Detection (Baseline)**  
-   - *Method:* Analyse consecutive location points. If the calculated speed exceeds a realistic threshold (e.g., 50 km in 3 minutes), the claim is marked suspicious.  
-   - *Mitigation:* Flagged claims appear in admin queue; auto‑payout withheld.
-
-2. **Fake Weather Claims**  
-   - *Method:* Cross‑reference claim time and zone with a secondary weather data source (mock or real) to verify that the claimed trigger actually occurred.  
-   - *Mitigation:* Mismatched data triggers manual review.
-
-3. **Duplicate Claim Prevention**  
-   - *Method:* Check for identical rider, same trigger type, same time window, and same event ID.  
-   - *Mitigation:* Duplicates are automatically rejected, and the rider receives a notification explaining the rejection.
-
-4. **Pattern‑of‑Life Analysis**  
-   - *Method:* Compare rider’s historical activity (hours worked, zones frequented) against their behaviour during the claimed disruption.  
-   - *Mitigation:* If a rider appears only during high‑risk events (e.g., logs in only when it starts raining), their future claims may be subject to higher scrutiny.
-
-All fraud flags are visualised in the **Admin Dashboard** with options to approve, reject, or suspend user accounts.
 
 ---
 
