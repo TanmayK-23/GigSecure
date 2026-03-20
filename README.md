@@ -144,25 +144,49 @@ GigSecure embeds machine learning at three critical layers, each serving a disti
 
 ---
 
-## 🚨 Adversarial Defense & Anti-Spoofing Strategy (24-Hour Crisis Response)
+## Fraud Detection
+
+Parametric insurance can be vulnerable to opportunistic behaviour. GigSecure implements a multi‑layered fraud detection system to protect the pool and ensure fair payouts.
+
+### 🚨 Adversarial Defense & Anti-Spoofing Strategy (24-Hour Crisis Response)
 
 With the rise of coordinated syndicates using advanced GPS-spoofing to drain liquidity pools, basic geospatial fences are obsolete. GigSecure defends the treasury using an **Unsupervised Isolation Forest** anomaly detection model combined with granular device telemetry.
 
-### 1. The Differentiation: Spoofing vs. Genuine Disruption
+#### 1. The Differentiation: Spoofing vs. Genuine Disruption
 A real delivery partner trapped in a red-alert storm exhibits erratic micro-movements (seeking shelter) and fading signal strength as severe weather disrupts cell towers. A bad actor lounging at home using a GPS spoofer typically transmits mathematically perfect, rigidly stationary coordinates or "robotic" linear trajectories into the storm zone. Our ML model identifies these inorganic coordinate clusters and flags them instantly.
 
-### 2. The Data: Beyond Basic Coordinates
+#### 2. The Data: Beyond Basic Coordinates
 To defeat localized spoofing rings, our Trigger Engine ingests a multi-dimensional telemetry vector instead of just lat/long coordinates:
 - **Timestamp Velocity (The Physics Check):** We calculate the time-distance delta. A ping jumping 15km into a rain zone in 4 seconds is an impossible velocity anomaly.
 - **Altitude Consistency (Z-Axis):** Basic spoofers often lock altitude to `0` or a static number. We cross-reference the Z-axis against local topography.
 - **Gyroscopic & Accelerometer Variance:** Authentic riders in a storm generate micro-shifts (shivers, phone handling). Spoofed devices report synthetic, static sensor profiles.
 - **Pattern-of-Life Syndicate Matching:** If 500 devices suddenly converge on a single localized grid precisely 2 minutes after a weather alert, the model flags the highly coordinated timing as a syndicate attack.
 
-### 3. The UX Balance: Protecting Honest Riders
+#### 3. The UX Balance: Protecting Honest Riders
 GigSecure operates on a "Trust, but Verify asynchronously" mechanism so honest workers experiencing genuine network drops aren't unfairly punished:
 - **Soft-Flagging:** If an Anomaly Score crosses the threshold, the claim is NOT rejected. It enters a `PENDING_REVIEW` state rather than auto-paying.
 - **Grace Period & Asynchronous Proof:** The flagged rider receives a notification about a "security delay" and is requested to submit a quick 5-second live camera pan or a final delivery screenshot when their network stabilizes.
 - **Trust Score Routing:** Riders with a historically strong, verified track record (high trust score generated during Onboarding risk profiling) bypass initial strict filters, minimizing friction for our most loyal users.
+
+### Standard Detection Mechanisms
+
+1. **GPS Spoofing Detection (Baseline)**  
+   - *Method:* Analyse consecutive location points. If the calculated speed exceeds a realistic threshold (e.g., 50 km in 3 minutes), the claim is marked suspicious.  
+   - *Mitigation:* Flagged claims appear in admin queue; auto‑payout withheld.
+
+2. **Fake Weather Claims**  
+   - *Method:* Cross‑reference claim time and zone with a secondary weather data source (mock or real) to verify that the claimed trigger actually occurred.  
+   - *Mitigation:* Mismatched data triggers manual review.
+
+3. **Duplicate Claim Prevention**  
+   - *Method:* Check for identical rider, same trigger type, same time window, and same event ID.  
+   - *Mitigation:* Duplicates are automatically rejected, and the rider receives a notification explaining the rejection.
+
+4. **Pattern‑of‑Life Analysis**  
+   - *Method:* Compare rider’s historical activity (hours worked, zones frequented) against their behaviour during the claimed disruption.  
+   - *Mitigation:* If a rider appears only during high‑risk events (e.g., logs in only when it starts raining), their future claims may be subject to higher scrutiny.
+
+All fraud flags are visualised in the **Admin Dashboard** with options to approve, reject, or suspend user accounts.
 
 ---
 
