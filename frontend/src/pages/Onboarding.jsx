@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle, MapPin, User, Zap, ChevronRight, ChevronLeft } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { computeRiskScore, getRiskLabel, calcPremium } from '../utils/mockData';
+import { getRiskLabel } from '../utils/mockData';
 
+const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 const STEPS = ['Verify', 'Location', 'Profile', 'Your Risk'];
 
 export default function Onboarding() {
@@ -15,19 +16,55 @@ export default function Onboarding() {
   const { updateUser } = useAuth();
   const navigate = useNavigate();
 
-  const next = () => {
+  const fetchPremium = async (profileData) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/policies/quote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          zone: 'Mumbai – Andheri West',
+          vehicle_type: profileData.vehicle_type,
+          avg_daily_earnings: Number(profileData.avg_daily_earnings),
+          peak_booster: false,
+        }),
+      });
+      return await res.json();
+    } catch (err) {
+      console.warn('[Onboarding] Backend unreachable, using fallback pricing');
+      // Local fallback
+      const score = 62;
+      return {
+        risk_score: score,
+        risk_label: 'medium',
+        base: 35,
+        zone_loading: 10,
+        weather_loading: 8,
+        vehicle_loading: 3,
+        peak_booster: 0,
+        total: 56,
+        savings_tip: null,
+      };
+    }
+  };
+
+  const next = async () => {
     if (step === 1 && !locationGranted) return;
     if (step === 2) {
       if (!profile.name || !profile.avg_daily_earnings) return;
       setLoading(true);
-      setTimeout(() => {
-        const score = computeRiskScore({ ...profile, zone: 'Mumbai – Andheri West' });
-        const { total } = calcPremium(score, false, 'Mumbai – Andheri West');
-        setRiskData({ score, weeklyPremium: total });
-        updateUser({ ...profile, avg_daily_earnings: Number(profile.avg_daily_earnings), risk_score: score });
-        setLoading(false);
-        setStep(3);
-      }, 1800);
+      const breakdown = await fetchPremium(profile);
+      setRiskData({
+        score: breakdown.risk_score || 62,
+        weeklyPremium: breakdown.total,
+        breakdown,
+      });
+      updateUser({
+        ...profile,
+        avg_daily_earnings: Number(profile.avg_daily_earnings),
+        risk_score: breakdown.risk_score || 62,
+      });
+      setLoading(false);
+      setStep(3);
       return;
     }
     if (step === 3) { navigate('/rider'); return; }
@@ -73,7 +110,7 @@ export default function Onboarding() {
         {/* Step Content */}
         <div className="card animate-fade-up" style={{ padding: 32 }}>
 
-          {/* Step 0: OTP Done (already verified on landing) */}
+          {/* Step 0: OTP Done */}
           {step === 0 && (
             <div className="text-center">
               <div style={{ fontSize: 56, marginBottom: 16 }}>✅</div>
@@ -176,7 +213,7 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* Step 3: Risk Score */}
+          {/* Step 3: Risk Score + Premium Breakdown */}
           {step === 3 && riskData && (
             <div className="text-center">
               <p className="text-muted mb-3" style={{ fontSize: '0.875rem' }}>Your AI-powered risk profile</p>
@@ -203,9 +240,51 @@ export default function Onboarding() {
                 {risk.label} Risk Zone
               </div>
 
-              <p className="text-muted mb-6" style={{ fontSize: '0.875rem', lineHeight: 1.7 }}>
-                Based on your zone (Andheri West), historical weather, and delivery hours — your weekly premium is:
-              </p>
+              {/* Premium Breakdown Card */}
+              {riskData.breakdown && (
+                <div style={{
+                  background: 'var(--bg-secondary)',
+                  borderRadius: 12,
+                  padding: 16,
+                  marginBottom: 16,
+                  textAlign: 'left',
+                }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 1 }}>
+                    Premium Breakdown
+                  </div>
+                  {[
+                    { label: 'Base Coverage', value: riskData.breakdown.base },
+                    { label: `Zone Loading (${riskData.breakdown.zone_label || 'Zone'})`, value: riskData.breakdown.zone_loading },
+                    { label: 'Weather Loading', value: riskData.breakdown.weather_loading },
+                    { label: 'Vehicle Factor', value: riskData.breakdown.vehicle_loading },
+                    ...(riskData.breakdown.peak_booster > 0 ? [{ label: 'Peak Booster', value: riskData.breakdown.peak_booster }] : []),
+                  ].map((item, i) => (
+                    <div key={i} className="flex justify-between" style={{ padding: '5px 0', fontSize: '0.85rem', borderBottom: '1px solid var(--border)' }}>
+                      <span className="text-muted">{item.label}</span>
+                      <span style={{ fontWeight: 600 }}>₹{item.value}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between" style={{ padding: '8px 0 0', fontSize: '1rem', fontWeight: 800 }}>
+                    <span>Weekly Total</span>
+                    <span style={{ color: 'var(--primary-light)' }}>₹{riskData.weeklyPremium}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Savings tip */}
+              {riskData.breakdown?.savings_tip && (
+                <div style={{
+                  background: 'rgba(16,185,129,.08)',
+                  border: '1px solid rgba(16,185,129,.25)',
+                  borderRadius: 10,
+                  padding: 12,
+                  marginBottom: 16,
+                  fontSize: '0.8rem',
+                  color: 'var(--success-light)',
+                }}>
+                  💡 {riskData.breakdown.savings_tip}
+                </div>
+              )}
 
               <div className="premium-card" style={{ borderRadius: 16, padding: 24, marginBottom: 24 }}>
                 <div style={{ fontSize: '2.5rem', fontWeight: 900 }}>₹{riskData.weeklyPremium}</div>

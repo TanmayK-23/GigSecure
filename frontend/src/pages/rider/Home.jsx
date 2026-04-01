@@ -8,7 +8,7 @@ import { getRiskLabel, TRIGGER_ICONS, calcPremium } from '../../utils/mockData';
 
 export default function RiderHome() {
   const { user } = useAuth();
-  const { active, claims, triggerInProgress, simulateTrigger, notifications } = usePolicy();
+  const { active, claims, triggerInProgress, simulateTrigger, notifications, liveToast } = usePolicy();
   const { t } = useI18n();
   const navigate = useNavigate();
 
@@ -22,6 +22,45 @@ export default function RiderHome() {
 
   return (
     <div className="page-content">
+      {/* Real-Time Claim Toast */}
+      {liveToast && (
+        <div style={{
+          position: 'fixed',
+          top: 20,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 9999,
+          background: 'linear-gradient(135deg, rgba(16,185,129,.95), rgba(5,150,105,.95))',
+          color: '#fff',
+          borderRadius: 16,
+          padding: '16px 24px',
+          boxShadow: '0 8px 32px rgba(16,185,129,.4)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          animation: 'slideDown 0.4s ease-out, fadeOut 0.5s ease 4.5s forwards',
+          maxWidth: 400,
+          width: '90vw',
+        }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: 12,
+            background: 'rgba(255,255,255,.2)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 22, flexShrink: 0,
+          }}>
+            💰
+          </div>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>
+              Payout Credited: ₹{liveToast.lost_income_amount}
+            </div>
+            <div style={{ opacity: 0.85, fontSize: '0.75rem', marginTop: 2 }}>
+              {liveToast.reason || liveToast.trigger_type} · Zero-touch
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Greeting */}
       <div className="flex justify-between items-center mb-6" style={{ flexWrap: 'wrap', gap: 12 }}>
         <div>
@@ -60,7 +99,7 @@ export default function RiderHome() {
         <div className="card mb-6" style={{ border: '2px dashed var(--border-active)', textAlign: 'center', padding: 32 }}>
           <Shield size={40} style={{ color: 'var(--primary)', margin: '0 auto 12px' }} />
           <h4 className="mb-2">No Active Coverage</h4>
-          <p className="text-muted mb-4" style={{ fontSize: '0.875rem' }}>Get protected from ₹49/week</p>
+          <p className="text-muted mb-4" style={{ fontSize: '0.875rem' }}>Get protected from ₹35/week</p>
           <button className="btn btn-primary" onClick={() => navigate('/rider/policy')}>
             Activate Weekly Cover
           </button>
@@ -95,20 +134,22 @@ export default function RiderHome() {
         </div>
       </div>
 
-      {/* Trigger Simulation */}
+      {/* Trigger Simulation — now 5 triggers */}
       <div className="card mb-6">
         <div className="flex justify-between items-center mb-3">
           <h4>🔔 Simulate a Trigger</h4>
           <span className="badge badge-muted text-xs">Demo Mode</span>
         </div>
         <p className="text-muted mb-4" style={{ fontSize: '0.8rem' }}>
-          Trigger an event to see automated claim processing in action.
+          Trigger an event to see automated zero-touch claim processing in action.
         </p>
         <div className="flex flex-col gap-2">
           {[
             { type: 'heavy_rain', label: '🌧️ Heavy Rain Event', amount: '₹246' },
             { type: 'platform_outage', label: '📵 Platform Outage', amount: '₹123' },
             { type: 'curfew', label: '🚧 Zone Curfew', amount: '₹328' },
+            { type: 'extreme_heat', label: '🔥 Extreme Heat (44°C)', amount: '₹180' },
+            { type: 'flood_alert', label: '🌊 Flood Alert', amount: '₹290' },
           ].map(({ type, label, amount }) => (
             <button
               key={type}
@@ -124,7 +165,7 @@ export default function RiderHome() {
           {triggerInProgress && (
             <div className="flex items-center gap-2 mt-2" style={{ color: 'var(--accent)', fontSize: '0.875rem' }}>
               <span className="spinner" style={{ width: 16, height: 16 }} />
-              <span>Processing {triggerInProgress.reason}… Payout incoming!</span>
+              <span>Processing {triggerInProgress.type}… Payout incoming!</span>
             </div>
           )}
         </div>
@@ -146,11 +187,11 @@ export default function RiderHome() {
           {recentClaims.map(claim => (
             <div key={claim.id} className="claim-item">
               <div className="claim-icon" style={{ background: claim.fraud_flag ? 'var(--danger-bg)' : 'var(--success-bg)' }}>
-                <span style={{ fontSize: 20 }}>{TRIGGER_ICONS[claim.trigger_type]}</span>
+                <span style={{ fontSize: 20 }}>{TRIGGER_ICONS[claim.trigger_type] || '⚡'}</span>
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{claim.reason}</div>
-                <div className="text-xs text-muted">{new Date(claim.trigger_time).toLocaleDateString('en-IN')} · {claim.zone}</div>
+                <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{claim.reason || claim.trigger_type}</div>
+                <div className="text-xs text-muted">{new Date(claim.trigger_time).toLocaleDateString('en-IN')} · {claim.zone || 'Mumbai'}</div>
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontWeight: 700, color: claim.fraud_flag ? 'var(--danger-light)' : 'var(--success-light)' }}>

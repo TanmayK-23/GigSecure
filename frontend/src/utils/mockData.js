@@ -192,6 +192,8 @@ export const TRIGGER_ICONS = {
   platform_outage: '📵',
   curfew: '🚧',
   zone_closure: '🔒',
+  extreme_heat: '🔥',
+  flood_alert: '🌊',
 };
 
 export const HINDI_STRINGS = {
