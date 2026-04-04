@@ -1,5 +1,4 @@
 import { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react';
-import { io } from 'socket.io-client';
 import { MOCK_POLICY, MOCK_CLAIMS } from '../utils/mockData';
 
 const PolicyContext = createContext(null);
@@ -14,7 +13,7 @@ const initialState = {
     { id: 2, text: 'Policy renewed successfully', read: true, time: '3d ago' },
   ],
   triggerInProgress: null,
-  liveToast: null, // For real-time claim animation
+  liveToast: null,
 };
 
 function policyReducer(state, action) {
@@ -50,42 +49,60 @@ export function PolicyProvider({ children }) {
   const [state, dispatch] = useReducer(policyReducer, initialState);
   const socketRef = useRef(null);
 
-  // Initialize Socket.IO connection
+  // Initialize Socket.IO connection via lazy dynamic import
   useEffect(() => {
-    const socket = io(BACKEND_URL, {
-      transports: ['websocket', 'polling'],
-      reconnectionAttempts: 5,
-    });
-    socketRef.current = socket;
+    let socket = null;
 
-    socket.on('connect', () => {
-      console.log('[Socket.IO] Connected to backend');
-    });
+    import('socket.io-client')
+      .then(({ io }) => {
+        socket = io(BACKEND_URL, {
+          transports: ['websocket', 'polling'],
+          reconnectionAttempts: 5,
+        });
+        socketRef.current = socket;
 
-    // Listen for real-time claims from trigger engine
-    socket.on('new_claim', (claim) => {
-      console.log('[Socket.IO] New claim received:', claim);
-      dispatch({ type: 'ADD_CLAIM', payload: claim });
-      dispatch({
-        type: 'ADD_NOTIFICATION',
-        payload: { text: `Claim ₹${claim.lost_income_amount} auto-processed – ${claim.reason || claim.trigger_type}` },
+        socket.on('connect', () => {
+          console.log('[Socket.IO] Connected to backend');
+        });
+
+        socket.on('new_claim', (claim) => {
+          console.log('[Socket.IO] New claim received:', claim);
+          dispatch({ type: 'ADD_CLAIM', payload: claim });
+          dispatch({
+            type: 'ADD_NOTIFICATION',
+            payload: { text: `Claim ₹${claim.lost_income_amount} auto-processed – ${claim.reason || claim.trigger_type}` },
+          });
+          dispatch({ type: 'SHOW_TOAST', payload: claim });
+          setTimeout(() => dispatch({ type: 'HIDE_TOAST' }), 5000);
+        });
+
+        socket.on('trigger_alert', ({ trigger }) => {
+          console.log('[Socket.IO] Trigger alert:', trigger);
+        });
+      })
+      .catch(() => {
+        console.warn('[Socket.IO] socket.io-client not available, running in offline mode');
       });
-      // Show toast animation
-      dispatch({ type: 'SHOW_TOAST', payload: claim });
-      setTimeout(() => dispatch({ type: 'HIDE_TOAST' }), 5000);
-    });
-
-    socket.on('trigger_alert', ({ trigger }) => {
-      console.log('[Socket.IO] Trigger alert:', trigger);
-    });
 
     return () => {
-      socket.disconnect();
+      if (socket) socket.disconnect();
     };
   }, []);
 
   const purchasePolicy = useCallback((policyData) => {
-    dispatch({ type: 'SET_POLICY', payload: { ...MOCK_POLICY, ...policyData, id: 'POL-' + Date.now() } });
+    const now = new Date();
+    const end = new Date(now.getTime() + 7 * 86400000);
+    dispatch({
+      type: 'SET_POLICY',
+      payload: {
+        ...MOCK_POLICY,
+        ...policyData,
+        id: 'POL-' + Date.now(),
+        start_date: now.toISOString().slice(0, 10),
+        end_date: end.toISOString().slice(0, 10),
+        status: 'active',
+      },
+    });
   }, []);
 
   // Route trigger simulation through the backend API
@@ -100,7 +117,6 @@ export function PolicyProvider({ children }) {
       });
       const data = await res.json();
       if (data.triggered && data.claims?.length > 0) {
-        // Claims will arrive via Socket.IO, but add them here too as fallback
         for (const claim of data.claims) {
           dispatch({ type: 'ADD_CLAIM', payload: { ...claim, reason: data.trigger?.reason } });
           dispatch({
@@ -108,10 +124,14 @@ export function PolicyProvider({ children }) {
             payload: { text: `Claim ₹${claim.lost_income_amount} processed – ${data.trigger?.reason || type}` },
           });
         }
+        dispatch({ type: 'SHOW_TOAST', payload: data.claims[0] });
+        setTimeout(() => dispatch({ type: 'HIDE_TOAST' }), 5000);
+      } else if (data.message) {
+        // Idempotent guard — trigger already processed
+        console.log('[Trigger] Already processed:', data.message);
       }
     } catch (err) {
       console.warn('[simulateTrigger] Backend unreachable, using local fallback');
-      // Fallback to local simulation
       const triggers = {
         heavy_rain: { reason: 'Heavy Rain > 25mm/h', amount: 246, zone: 'Andheri West' },
         platform_outage: { reason: 'Platform Outage Detected', amount: 123, zone: 'Pan-Mumbai' },

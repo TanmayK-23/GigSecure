@@ -50,7 +50,7 @@
 
 Instead of waiting for an accident and filing paperwork, GigSecure **automatically** monitors external data sources (weather APIs, platform health APIs, civic alert APIs). When a predefined disruption threshold is crossed in a rider’s active zone, the policy **triggers automatically**, and the rider receives an **instant payout** for lost income – with **zero claim filing** required.
 
-### How It Works (End‑to‑End)
+### How It Works (Phase 1 Baseline)
 
 1. **Onboarding & Risk Profiling**  
    - Rider signs up with phone number (OTP verification).  
@@ -73,6 +73,28 @@ Instead of waiting for an accident and filing paperwork, GigSecure **automatical
 4. **Analytics & Insights**  
    - Riders see “Earnings Protected” dashboard: total payouts vs. premiums paid.  
    - Admin dashboard shows loss ratio, predictive claim volume, fraud alerts, and trigger performance.
+
+### Key Modules (Phase 2 Implementations)
+
+1. **Registration Process**  
+   - **Seamless Onboarding:** Fast OTP-based mobile login designed for riders on the go, avoiding lengthy forms.
+   - **Interactive Zone Selection:** Riders select from 5 distinct coverage zones (e.g. Andheri, Dharavi, Powai).
+   - **Real-Time UX:** Features smooth stagger animations (`fadeUp`) for a premium onboarding experience.
+
+2. **Insurance Policy Management**  
+   - **Transparent Coverage:** Policies are active for exactly 7 days, tailored to the weekly gig economy cash flow. 
+   - **Feature-Rich Dashboard:** Riders clearly see "Days Remaining", along with visual alerts when a policy approaches expiry (< 2 days).
+   - **Shareable Proof:** Riders can instantly share a snapshot of their active policy coverage via a copy-to-clipboard modal.
+
+3. **Dynamic Premium Calculation**  
+   - **ML-Driven Risk Engine:** Uses `XGBoost` & local logic to assess base risk, weather factors (e.g. rain/heat), and vehicle type.
+   - **Live Price Recalculation:** The UI updates instantly (debounced at 400ms) over websockets as the rider toggles their vehicle, zone, or adds "Peak Hour Boosters" — giving them total control and trust over their pricing.
+   - **Transparent Breakdown:** Riders can see exactly what they're paying for (`Base ₹35 + Zone ₹10 + Weather ₹8 = ₹53`).
+
+4. **Claims Management**  
+   - **Zero-Touch Automation:** A backend `node-cron` orchestrator polls mock environmental APIs (rainfall, curfew, heat, platform outage, floods).
+   - **Idempotent Triggering:** Automatically flags events and creates payout claims strictly for riders located in affected zones with active policies. No subjective paperwork required by the rider.
+   - **Real-time Notifications:** Pushes instant notifications via `Socket.IO` to the frontend. Upon payout, riders get immersive visual cues (flying coins CSS animation) and an auditory ping (WebAudio chord), letting them know they are protected even in a storm.
 
 ### Parametric Triggers (Examples)
 

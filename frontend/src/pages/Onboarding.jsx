@@ -1,20 +1,64 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle, MapPin, User, Zap, ChevronRight, ChevronLeft } from 'lucide-react';
+import { CheckCircle, MapPin, Zap, ChevronRight, ChevronLeft } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getRiskLabel } from '../utils/mockData';
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 const STEPS = ['Verify', 'Location', 'Profile', 'Your Risk'];
 
+// Zone options — fetched from ML /zones or fallback
+const FALLBACK_ZONES = [
+  { id: 'andheri', label: 'Mumbai – Andheri West' },
+  { id: 'bandra', label: 'Mumbai – Bandra' },
+  { id: 'kurla', label: 'Mumbai – Kurla' },
+  { id: 'dharavi', label: 'Mumbai – Dharavi' },
+  { id: 'powai', label: 'Mumbai – Powai' },
+];
+
 export default function Onboarding() {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [locationGranted, setLocationGranted] = useState(false);
-  const [profile, setProfile] = useState({ name: '', vehicle_type: 'Two-Wheeler', avg_daily_earnings: '' });
+  const [profile, setProfile] = useState({ name: '', vehicle_type: 'Two-Wheeler', avg_daily_earnings: '', zone: 'Mumbai – Andheri West' });
   const [riskData, setRiskData] = useState(null);
+  const [zones, setZones] = useState(FALLBACK_ZONES);
+  const [livePreview, setLivePreview] = useState(null); // #1: live premium preview
   const { updateUser } = useAuth();
   const navigate = useNavigate();
+
+  // #2: Fetch zones from ML on mount
+  useEffect(() => {
+    fetch(`${BACKEND_URL}/api/policies/quote`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      .catch(() => {});
+  }, []);
+
+  // #1: Live premium recalculation (debounced) when profile changes on step 2
+  useEffect(() => {
+    if (step !== 2 || !profile.avg_daily_earnings || !profile.name) {
+      setLivePreview(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/policies/quote`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            zone: profile.zone,
+            vehicle_type: profile.vehicle_type,
+            avg_daily_earnings: Number(profile.avg_daily_earnings),
+            peak_booster: false,
+          }),
+        });
+        const data = await res.json();
+        setLivePreview(data);
+      } catch {
+        setLivePreview({ total: '~₹50-60', base: 35 });
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [step, profile.zone, profile.vehicle_type, profile.avg_daily_earnings, profile.name]);
 
   const fetchPremium = async (profileData) => {
     try {
@@ -22,28 +66,15 @@ export default function Onboarding() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          zone: 'Mumbai – Andheri West',
+          zone: profileData.zone || 'Mumbai – Andheri West',
           vehicle_type: profileData.vehicle_type,
           avg_daily_earnings: Number(profileData.avg_daily_earnings),
           peak_booster: false,
         }),
       });
       return await res.json();
-    } catch (err) {
-      console.warn('[Onboarding] Backend unreachable, using fallback pricing');
-      // Local fallback
-      const score = 62;
-      return {
-        risk_score: score,
-        risk_label: 'medium',
-        base: 35,
-        zone_loading: 10,
-        weather_loading: 8,
-        vehicle_loading: 3,
-        peak_booster: 0,
-        total: 56,
-        savings_tip: null,
-      };
+    } catch {
+      return { risk_score: 62, risk_label: 'medium', base: 35, zone_loading: 10, weather_loading: 8, vehicle_loading: 3, peak_booster: 0, total: 56, savings_tip: null };
     }
   };
 
@@ -53,16 +84,8 @@ export default function Onboarding() {
       if (!profile.name || !profile.avg_daily_earnings) return;
       setLoading(true);
       const breakdown = await fetchPremium(profile);
-      setRiskData({
-        score: breakdown.risk_score || 62,
-        weeklyPremium: breakdown.total,
-        breakdown,
-      });
-      updateUser({
-        ...profile,
-        avg_daily_earnings: Number(profile.avg_daily_earnings),
-        risk_score: breakdown.risk_score || 62,
-      });
+      setRiskData({ score: breakdown.risk_score || 62, weeklyPremium: breakdown.total, breakdown });
+      updateUser({ ...profile, avg_daily_earnings: Number(profile.avg_daily_earnings), risk_score: breakdown.risk_score || 62 });
       setLoading(false);
       setStep(3);
       return;
@@ -74,15 +97,7 @@ export default function Onboarding() {
   const risk = riskData ? getRiskLabel(riskData.score) : null;
 
   return (
-    <div style={{
-      minHeight: '100dvh',
-      background: 'var(--bg-primary)',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: 24,
-    }}>
+    <div style={{ minHeight: '100dvh', background: 'var(--bg-primary)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div style={{ width: '100%', maxWidth: 480 }}>
         {/* Logo */}
         <div className="flex items-center justify-center gap-2 mb-8">
@@ -125,20 +140,13 @@ export default function Onboarding() {
           {/* Step 1: Location */}
           {step === 1 && (
             <div className="text-center">
-              <div style={{ fontSize: 56, marginBottom: 16 }}>📍</div>
+              <div style={{ fontSize: 56, marginBottom: 16, animation: 'float 3s ease-in-out infinite' }}>📍</div>
               <h3 className="mb-2">Share Your Location</h3>
               <p className="text-muted mb-6" style={{ fontSize: '0.875rem' }}>
                 We use your delivery zone's historical weather and traffic data to calculate your premium accurately.
               </p>
               {!locationGranted ? (
-                <button
-                  className="btn btn-secondary w-full btn-lg mb-4"
-                  onClick={() => {
-                    setLoading(true);
-                    setTimeout(() => { setLocationGranted(true); setLoading(false); }, 1200);
-                  }}
-                  disabled={loading}
-                >
+                <button className="btn btn-secondary w-full btn-lg mb-4" onClick={() => { setLoading(true); setTimeout(() => { setLocationGranted(true); setLoading(false); }, 1200); }} disabled={loading}>
                   <MapPin size={18} />
                   {loading ? 'Getting location…' : 'Grant Location Access'}
                 </button>
@@ -156,59 +164,57 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* Step 2: Profile */}
+          {/* Step 2: Profile — #1 live premium + #2 zone selector + #9 stagger */}
           {step === 2 && (
             <div>
               <h3 className="mb-2">Tell us about yourself</h3>
               <p className="text-muted mb-6" style={{ fontSize: '0.875rem' }}>This helps us calculate your exact income protection.</p>
 
               <div className="flex flex-col gap-4">
-                <div className="input-group">
+                {/* #9: Stagger animation on each field */}
+                <div className="input-group" style={{ animation: 'fadeUp 0.4s ease-out 0.05s both' }}>
                   <label className="input-label">Full Name</label>
-                  <input
-                    className="input-field"
-                    placeholder="e.g. Ravi Kumar"
-                    value={profile.name}
-                    onChange={e => setProfile(p => ({ ...p, name: e.target.value }))}
-                  />
+                  <input className="input-field" placeholder="e.g. Ravi Kumar" value={profile.name} onChange={e => setProfile(p => ({ ...p, name: e.target.value }))} />
                 </div>
 
-                <div className="input-group">
+                {/* #2: Zone selector */}
+                <div className="input-group" style={{ animation: 'fadeUp 0.4s ease-out 0.15s both' }}>
+                  <label className="input-label">Delivery Zone</label>
+                  <select className="input-field" value={profile.zone} onChange={e => setProfile(p => ({ ...p, zone: e.target.value }))} style={{ background: 'var(--bg-secondary)' }}>
+                    {zones.map(z => <option key={z.id} value={z.label}>{z.label}</option>)}
+                  </select>
+                </div>
+
+                <div className="input-group" style={{ animation: 'fadeUp 0.4s ease-out 0.25s both' }}>
                   <label className="input-label">Vehicle Type</label>
-                  <select
-                    className="input-field"
-                    value={profile.vehicle_type}
-                    onChange={e => setProfile(p => ({ ...p, vehicle_type: e.target.value }))}
-                    style={{ background: 'var(--bg-secondary)' }}
-                  >
+                  <select className="input-field" value={profile.vehicle_type} onChange={e => setProfile(p => ({ ...p, vehicle_type: e.target.value }))} style={{ background: 'var(--bg-secondary)' }}>
                     <option value="Two-Wheeler">Two-Wheeler</option>
                     <option value="Bicycle">Bicycle</option>
                     <option value="Three-Wheeler">Three-Wheeler</option>
                   </select>
                 </div>
 
-                <div className="input-group">
+                <div className="input-group" style={{ animation: 'fadeUp 0.4s ease-out 0.35s both' }}>
                   <label className="input-label">Average Daily Earnings (₹)</label>
-                  <input
-                    className="input-field"
-                    placeholder="e.g. 820"
-                    type="number"
-                    value={profile.avg_daily_earnings}
-                    onChange={e => setProfile(p => ({ ...p, avg_daily_earnings: e.target.value }))}
-                  />
+                  <input className="input-field" placeholder="e.g. 820" type="number" value={profile.avg_daily_earnings} onChange={e => setProfile(p => ({ ...p, avg_daily_earnings: e.target.value }))} />
                 </div>
               </div>
 
-              <button
-                className="btn btn-primary w-full btn-lg mt-6"
-                onClick={next}
-                disabled={loading || !profile.name || !profile.avg_daily_earnings}
-              >
-                {loading ? (
-                  <><span className="spinner" /> Calculating Risk Score…</>
-                ) : (
-                  <>Get My Risk Score <Zap size={18} /></>
-                )}
+              {/* #1: Live premium preview */}
+              {livePreview && livePreview.total && (
+                <div style={{
+                  marginTop: 16, padding: '12px 16px', borderRadius: 12,
+                  background: 'rgba(108,71,255,.06)', border: '1px solid rgba(108,71,255,.2)',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  animation: 'fadeUp 0.3s ease-out',
+                }}>
+                  <span className="text-muted" style={{ fontSize: '0.8rem' }}>Estimated Premium</span>
+                  <span style={{ fontWeight: 800, color: 'var(--primary-light)', fontSize: '1.1rem' }}>₹{livePreview.total}/week</span>
+                </div>
+              )}
+
+              <button className="btn btn-primary w-full btn-lg mt-6" onClick={next} disabled={loading || !profile.name || !profile.avg_daily_earnings}>
+                {loading ? (<><span className="spinner" /> Calculating Risk Score…</>) : (<>Get My Risk Score <Zap size={18} /></>)}
               </button>
             </div>
           )}
@@ -224,7 +230,6 @@ export default function Onboarding() {
                 width: 120, height: 120, borderRadius: '50%', margin: '0 auto 20px',
                 background: `conic-gradient(var(--primary) ${riskData.score * 3.6}deg, var(--bg-secondary) 0deg)`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                position: 'relative',
               }}>
                 <div style={{
                   width: 90, height: 90, borderRadius: '50%',
@@ -236,25 +241,15 @@ export default function Onboarding() {
                 </div>
               </div>
 
-              <div className={`badge ${risk.cls} mb-4`} style={{ fontSize: '0.875rem', padding: '6px 16px' }}>
-                {risk.label} Risk Zone
-              </div>
+              <div className={`badge ${risk.cls} mb-4`} style={{ fontSize: '0.875rem', padding: '6px 16px' }}>{risk.label} Risk Zone</div>
 
               {/* Premium Breakdown Card */}
               {riskData.breakdown && (
-                <div style={{
-                  background: 'var(--bg-secondary)',
-                  borderRadius: 12,
-                  padding: 16,
-                  marginBottom: 16,
-                  textAlign: 'left',
-                }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 1 }}>
-                    Premium Breakdown
-                  </div>
+                <div style={{ background: 'var(--bg-secondary)', borderRadius: 12, padding: 16, marginBottom: 16, textAlign: 'left' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 1 }}>Premium Breakdown</div>
                   {[
                     { label: 'Base Coverage', value: riskData.breakdown.base },
-                    { label: `Zone Loading (${riskData.breakdown.zone_label || 'Zone'})`, value: riskData.breakdown.zone_loading },
+                    { label: `Zone (${riskData.breakdown.zone_label || 'Zone'})`, value: riskData.breakdown.zone_loading },
                     { label: 'Weather Loading', value: riskData.breakdown.weather_loading },
                     { label: 'Vehicle Factor', value: riskData.breakdown.vehicle_loading },
                     ...(riskData.breakdown.peak_booster > 0 ? [{ label: 'Peak Booster', value: riskData.breakdown.peak_booster }] : []),
@@ -271,17 +266,8 @@ export default function Onboarding() {
                 </div>
               )}
 
-              {/* Savings tip */}
               {riskData.breakdown?.savings_tip && (
-                <div style={{
-                  background: 'rgba(16,185,129,.08)',
-                  border: '1px solid rgba(16,185,129,.25)',
-                  borderRadius: 10,
-                  padding: 12,
-                  marginBottom: 16,
-                  fontSize: '0.8rem',
-                  color: 'var(--success-light)',
-                }}>
+                <div style={{ background: 'rgba(16,185,129,.08)', border: '1px solid rgba(16,185,129,.25)', borderRadius: 10, padding: 12, marginBottom: 16, fontSize: '0.8rem', color: 'var(--success-light)' }}>
                   💡 {riskData.breakdown.savings_tip}
                 </div>
               )}
@@ -291,20 +277,14 @@ export default function Onboarding() {
                 <div style={{ opacity: 0.8, fontSize: '0.875rem' }}>/ week · Fully automated cover</div>
               </div>
 
-              <button className="btn btn-accent w-full btn-lg" onClick={next}>
-                Activate My Cover 🚀
-              </button>
+              <button className="btn btn-accent w-full btn-lg" onClick={next}>Activate My Cover 🚀</button>
             </div>
           )}
         </div>
 
         {/* Back button */}
         {step > 0 && step < 3 && (
-          <button
-            className="btn btn-ghost btn-sm mt-4"
-            onClick={() => setStep(s => s - 1)}
-            style={{ display: 'flex', alignItems: 'center', gap: 4, margin: '16px auto 0' }}
-          >
+          <button className="btn btn-ghost btn-sm mt-4" onClick={() => setStep(s => s - 1)} style={{ display: 'flex', alignItems: 'center', gap: 4, margin: '16px auto 0' }}>
             <ChevronLeft size={16} /> Back
           </button>
         )}

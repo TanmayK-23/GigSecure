@@ -52,6 +52,35 @@
   --transition-slow: 0.4s cubic-bezier(0.4,0,0.2,1);
 }
 
+/* ── #12: Light Mode Theme ────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg-primary: #F8FAFC;
+  --bg-secondary: #EFF3F8;
+  --bg-card: #FFFFFF;
+  --bg-card-hover: #F1F5F9;
+  --bg-glass: rgba(255, 255, 255, 0.85);
+
+  --primary: #6C47FF;
+  --primary-light: #5a3ad9;
+  --primary-dark: #4c2cba;
+  --primary-glow: rgba(108, 71, 255, 0.15);
+
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #94A3B8;
+
+  --border: rgba(0, 0, 0, 0.08);
+  --border-active: rgba(108, 71, 255, 0.3);
+
+  --success-bg: rgba(16, 185, 129, 0.08);
+  --danger-bg: rgba(239, 68, 68, 0.08);
+  --warning-bg: rgba(245, 158, 11, 0.08);
+
+  --shadow-sm: 0 2px 8px rgba(0,0,0,.06);
+  --shadow-md: 0 4px 24px rgba(0,0,0,.08);
+  --shadow-glow: 0 0 32px rgba(108, 71, 255, 0.08);
+}
+
 /* ── Reset & Base ────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -724,3 +753,62 @@ h4 { font-size: 1rem; font-weight: 600; }
 .text-center { text-align: center; }
 .opacity-50 { opacity: 0.5; }
 .pointer { cursor: pointer; }
+
+/* ── #3: Coin Fly Animation ──────────────────────────────────────── */
+@keyframes coinFly {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  60%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-300px) scale(0.3) rotate(180deg); }
+}
+.coin-fly {
+  animation: coinFly 2s ease-out forwards;
+  pointer-events: none;
+  position: absolute;
+}
+
+/* ── #9: FadeUp Animation ────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up {
+  animation: fadeUp 0.45s ease-out;
+}
+
+/* ── #10: Skeleton Loading Shimmer ───────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--bg-card-hover) 50%, var(--bg-secondary) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-md);
+}
+
+/* ── Floating animation ─────────────────────────────────────────── */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+
+/* ── #12: Theme Toggle Button ────────────────────────────────────── */
+.theme-toggle {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 18px;
+  transition: var(--transition);
+}
+.theme-toggle:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-active);
+}
