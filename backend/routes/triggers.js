@@ -3,7 +3,7 @@ const store = require('../mocks/store');
 const { processEvent } = require('../services/triggerEngine');
 
 // POST /api/triggers/webhook – receive external trigger events
-router.post('/webhook', (req, res) => {
+router.post('/webhook', async (req, res) => {
   const { type, zone, severity = 'medium', rainfall_mm, status } = req.body;
 
   let triggered = false;
@@ -22,7 +22,7 @@ router.post('/webhook', (req, res) => {
 
   if (!triggered) return res.json({ triggered: false });
 
-  const result = processEvent({
+  const result = await processEvent({
     type: type === 'weather' ? 'heavy_rain' : type === 'civic' ? 'curfew' : 'platform_outage',
     zone: zone || 'Pan-Mumbai',
     severity,
@@ -33,7 +33,7 @@ router.post('/webhook', (req, res) => {
 });
 
 // POST /api/triggers/simulate – Admin dashboard manual trigger
-router.post('/simulate', (req, res) => {
+router.post('/simulate', async (req, res) => {
   const { type, zone, severity = 'high' } = req.body;
 
   const reasons = {
@@ -44,7 +44,7 @@ router.post('/simulate', (req, res) => {
     flood_alert: `Flood alert: 55cm water in ${zone || 'Kurla'}`,
   };
 
-  const result = processEvent({
+  const result = await processEvent({
     type,
     zone: zone || 'Andheri West',
     severity,

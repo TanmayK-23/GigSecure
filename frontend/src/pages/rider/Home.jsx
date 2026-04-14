@@ -38,8 +38,18 @@ export default function RiderHome() {
   const riskScore = user?.risk_score || 62;
   const risk = getRiskLabel(riskScore);
   const daysLeft = active ? Math.max(0, Math.round((new Date(active.end_date) - new Date()) / 86400000)) : 0;
-  const recentClaims = claims.slice(0, 5);
-  const totalProtected = claims.filter(c => c.payout_status === 'paid').reduce((s, c) => s + c.lost_income_amount, 0);
+  
+  // Filter claims to only show those for the rider's zone
+  const userZone = user?.zone?.split('–')[1]?.trim() || 'Andheri West';
+  const userZoneTrim = userZone.toLowerCase().replace(' west', '');
+  const myClaims = claims.filter(c => {
+    const claimZone = (c.zone || '').toLowerCase();
+    // Allow if zone is exact match, or includes the generalized string
+    return claimZone === userZone.toLowerCase() || claimZone.includes(userZoneTrim) || userZoneTrim.includes(claimZone);
+  });
+  
+  const recentClaims = myClaims.slice(0, 5);
+  const totalProtected = myClaims.filter(c => c.payout_status === 'paid').reduce((s, c) => s + c.lost_income_amount, 0);
 
   // #3 + #8: Trigger coin animation & sound on new toast
   useEffect(() => {
@@ -81,10 +91,10 @@ export default function RiderHome() {
           animation: 'slideDown 0.4s ease-out, fadeOut 0.5s ease 4.5s forwards',
           maxWidth: 400, width: '90vw',
         }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(255,255,255,.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>💰</div>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>Payout Credited: ₹{liveToast.lost_income_amount}</div>
-            <div style={{ opacity: 0.85, fontSize: '0.75rem', marginTop: 2 }}>{liveToast.reason || liveToast.trigger_type} · Zero-touch</div>
+          <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(255,255,255,.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>💸</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>Bank Transfer Initiated: ₹{liveToast.lost_income_amount}</div>
+            <div style={{ opacity: 0.85, fontSize: '0.75rem', marginTop: 2 }}>{liveToast.reason || liveToast.trigger_type}</div>
           </div>
         </div>
       )}
@@ -163,7 +173,7 @@ export default function RiderHome() {
             <Zap size={16} />
             <span className="text-xs font-semibold">Claims</span>
           </div>
-          <div className="stat-value" style={{ fontSize: '1.4rem' }}>{claims.filter(c => c.payout_status === 'paid').length}</div>
+          <div className="stat-value" style={{ fontSize: '1.4rem' }}>{myClaims.filter(c => c.payout_status === 'paid').length}</div>
           <div className="stat-label">Auto-processed</div>
         </div>
         <div className="stat-card">
@@ -176,34 +186,7 @@ export default function RiderHome() {
         </div>
       </div>
 
-      {/* Trigger Simulation — 5 triggers */}
-      <div className="card mb-6">
-        <div className="flex justify-between items-center mb-3">
-          <h4>🔔 Simulate a Trigger</h4>
-          <span className="badge badge-muted text-xs">Demo Mode</span>
-        </div>
-        <p className="text-muted mb-4" style={{ fontSize: '0.8rem' }}>Trigger an event to see automated zero-touch claim processing in action.</p>
-        <div className="flex flex-col gap-2">
-          {[
-            { type: 'heavy_rain', label: '🌧️ Heavy Rain Event', amount: '₹246' },
-            { type: 'platform_outage', label: '📵 Platform Outage', amount: '₹123' },
-            { type: 'curfew', label: '🚧 Zone Curfew', amount: '₹328' },
-            { type: 'extreme_heat', label: '🔥 Extreme Heat (44°C)', amount: '₹180' },
-            { type: 'flood_alert', label: '🌊 Flood Alert', amount: '₹290' },
-          ].map(({ type, label, amount }) => (
-            <button key={type} className="btn btn-secondary" style={{ justifyContent: 'space-between', fontSize: '0.875rem' }} onClick={() => simulateTrigger(type)} disabled={!!triggerInProgress}>
-              <span>{label}</span>
-              <span style={{ color: 'var(--success-light)', fontWeight: 700 }}>Auto-payout {amount}</span>
-            </button>
-          ))}
-          {triggerInProgress && (
-            <div className="flex items-center gap-2 mt-2" style={{ color: 'var(--accent)', fontSize: '0.875rem' }}>
-              <span className="spinner" style={{ width: 16, height: 16 }} />
-              <span>Processing {triggerInProgress.type}… Payout incoming!</span>
-            </div>
-          )}
-        </div>
-      </div>
+
 
       {/* Recent Claims — #6: Click to open detail modal */}
       <div>
@@ -241,7 +224,7 @@ export default function RiderHome() {
           <div>
             <div style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: 4 }}>Risk Insight</div>
             <p className="text-muted" style={{ fontSize: '0.8rem', lineHeight: 1.6 }}>
-              Your zone had <strong style={{ color: 'var(--accent-light)' }}>{claims.length} trigger events</strong> recently.
+              Your zone had <strong style={{ color: 'var(--accent-light)' }}>{myClaims.length} trigger events</strong> recently.
               {daysLeft <= 2 ? ' Renew your policy to stay protected!' : ' Heavy rain forecast for next 2 days — consider the peak-hour booster.'}
             </p>
           </div>
@@ -274,11 +257,13 @@ export default function RiderHome() {
                 { label: 'Zone', value: claimDetail.zone || 'Mumbai' },
                 { label: 'Duration', value: claimDetail.trigger_duration || '—' },
                 { label: 'Time', value: new Date(claimDetail.trigger_time).toLocaleString('en-IN') },
-                { label: 'Transaction ID', value: claimDetail.tx_id || 'N/A' },
+                { label: 'Status', value: claimDetail.payout_status === 'processing' ? 'Processing Transfer...' : 'Paid to Bank' },
+                { label: 'Method', value: claimDetail.payout_method || 'IMPS' },
+                { label: 'UTR Number', value: claimDetail.utr_number || 'Pending' },
               ].map(({ label, value }) => (
                 <div key={label} className="flex justify-between" style={{ padding: '6px 0', fontSize: '0.85rem', borderBottom: '1px solid var(--border)' }}>
                   <span className="text-muted">{label}</span>
-                  <span style={{ fontWeight: 600, fontFamily: label === 'Transaction ID' ? 'monospace' : 'inherit', color: label === 'Transaction ID' ? 'var(--primary-light)' : 'inherit' }}>{value}</span>
+                  <span style={{ fontWeight: 600, fontFamily: label === 'UTR Number' ? 'monospace' : 'inherit', color: label === 'UTR Number' ? 'var(--primary-light)' : 'inherit' }}>{value}</span>
                 </div>
               ))}
             </div>

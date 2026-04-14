@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const store = require('../mocks/store');
+const { initiatePayout } = require('../services/payoutEngine');
 
 // GET /api/admin/metrics
 router.get('/metrics', (req, res) => {
@@ -32,9 +33,13 @@ router.patch('/fraud/:id', (req, res) => {
   const { action } = req.body; // 'approve' | 'reject' | 'suspend'
   const claim = store.claims.find(c => c.id === req.params.id);
   if (!claim) return res.status(404).json({ error: 'Claim not found' });
-  if (action === 'approve') claim.payout_status = 'paid';
-  else if (action === 'reject') claim.payout_status = 'rejected';
-  else if (action === 'suspend') { claim.payout_status = 'rejected'; /* mark user suspended */ }
+  
+  if (action === 'approve') {
+    initiatePayout(claim, req.app.get('io')); // this handles the processing->paid lifecycle and sockets
+  } else if (action === 'reject' || action === 'suspend') {
+    claim.payout_status = 'rejected';
+    req.app.get('io').emit('claim_rejected', claim);
+  }
   res.json({ claim });
 });
 

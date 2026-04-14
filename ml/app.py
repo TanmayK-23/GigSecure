@@ -1,6 +1,9 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import math, random, json
+import joblib
+import os
+import numpy as np
 
 app = Flask(__name__)
 CORS(app)
@@ -21,6 +24,22 @@ def _match_zone(zone_str: str) -> dict:
         if key in z:
             return profile
     return { 'base_risk': 8, 'flood_prone': False, 'avg_rainfall_mm': 20, 'label': zone_str or 'Unknown' }
+
+
+FRAUD_MODEL = None
+SCALER = None
+
+def load_models():
+    global FRAUD_MODEL, SCALER
+    try:
+        model_path = os.path.join(os.path.dirname(__file__), 'models')
+        FRAUD_MODEL = joblib.load(os.path.join(model_path, 'fraud_model.pkl'))
+        SCALER = joblib.load(os.path.join(model_path, 'scaler.pkl'))
+        print("✅ Pre-trained Fraud Models loaded successfully")
+    except Exception as e:
+        print(f"⚠️ Could not load fraud models: {e}")
+
+load_models()
 
 
 # ── Modular Risk Sub-Functions ──────────────────────────────────────
@@ -124,28 +143,65 @@ def compute_premium_breakdown(data: dict) -> dict:
 
 # ── Isolation Forest mock (fraud detection) ────────────────────────
 
-def compute_anomaly_score(locations: list) -> float:
-    """
-    Mock Isolation Forest on GPS location sequences.
-    Detects impossible speeds (>50 km/5 min = >600 km/h).
-    """
-    if len(locations) < 2:
-        return 0.0
-
+def extract_fraud_features(data: dict) -> np.ndarray:
+    """Extract standard features from telemetry payload for Isolation Forest."""
+    locations = data.get('locations', [])
     max_speed_kmh = 0
-    for i in range(len(locations) - 1):
-        p1, p2 = locations[i], locations[i+1]
-        lat_diff = abs(p2.get('lat', 0) - p1.get('lat', 0))
-        lng_diff = abs(p2.get('lng', 0) - p1.get('lng', 0))
-        dist_km = math.sqrt(lat_diff**2 + lng_diff**2) * 111
-        time_h = abs(p2.get('timestamp', 1) - p1.get('timestamp', 0)) / 3600
-        if time_h > 0:
-            speed = dist_km / time_h
-            max_speed_kmh = max(max_speed_kmh, speed)
+    alt_var = 0.0
+    gyro_var = 0.0
+    
+    if len(locations) > 1:
+        alts = [loc.get('alt', 5.0) for loc in locations]
+        gyros = [loc.get('gyro', 1.5) for loc in locations]
+        if alts: alt_var = np.var(alts)
+        if gyros: gyro_var = np.var(gyros)
+        
+        for i in range(len(locations) - 1):
+            p1, p2 = locations[i], locations[i+1]
+            lat_diff = abs(p2.get('lat', 0) - p1.get('lat', 0))
+            lng_diff = abs(p2.get('lng', 0) - p1.get('lng', 0))
+            dist_km = math.sqrt(lat_diff**2 + lng_diff**2) * 111
+            time_h = abs(p2.get('timestamp', 1) - p1.get('timestamp', 0)) / 3600
+            if time_h > 0:
+                speed = dist_km / time_h
+                max_speed_kmh = max(max_speed_kmh, speed)
+    
+    concurrent_claims = data.get('concurrent_claims', 1)
+    weather_mismatch = 1 if data.get('weather_mismatch') else 0
+    
+    return np.array([[max_speed_kmh, alt_var, gyro_var, concurrent_claims, weather_mismatch]])
 
-    anomaly = min(1.0, max_speed_kmh / 500)
-    return round(anomaly, 3)
-
+def compute_anomaly_score(data: dict) -> dict:
+    """
+    Real ML Isolation Forest prediction.
+    Features: max_speed, alt_variance, gyro_variance, concurrent_claims, weather_mismatch
+    """
+    if not FRAUD_MODEL or not SCALER:
+        return {'score': 0.0, 'is_suspicious': False, 'signals': []}
+        
+    features = extract_fraud_features(data)
+    features_scaled = SCALER.transform(features)
+    
+    # decision_function: < 0 is anomaly, > 0 is normal
+    raw_score = FRAUD_MODEL.decision_function(features_scaled)[0]
+    is_anomaly = FRAUD_MODEL.predict(features_scaled)[0] == -1
+    
+    # Map score to a 0.0 to 1.0 risk level for UI
+    risk_prob = min(1.0, max(0.0, 0.5 - (raw_score * 2.0)))
+    
+    signals = []
+    max_speed = features[0][0]
+    if max_speed > 60: signals.append(f'Impossible speed: {round(max_speed)} km/h')
+    if features[0][1] < 0.01: signals.append('Static altitude (GPS Spoofing likely)')
+    if features[0][2] < 0.1: signals.append('No gyroscope variance (Emulator likely)')
+    if features[0][3] > 10: signals.append(f'{features[0][3]} concurrent claims detected')
+    if features[0][4] == 1: signals.append('Weather data mismatch')
+    
+    return {
+        'score': round(risk_prob, 3),
+        'is_suspicious': bool(is_anomaly) or len(signals) > 0,
+        'signals': signals
+    }
 
 # ── ARIMA-style volume prediction ──────────────────────────────────
 
@@ -176,7 +232,7 @@ def health():
 
 @app.route('/predict/risk', methods=['POST'])
 def predict_risk():
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     risk_score = compute_risk_score(data)
     return jsonify({
         'risk_score': risk_score,
@@ -187,34 +243,38 @@ def predict_risk():
 @app.route('/predict/premium', methods=['POST'])
 def predict_premium():
     """Dynamic premium with transparent breakdown."""
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     breakdown = compute_premium_breakdown(data)
     return jsonify(breakdown)
 
 
-@app.route('/predict/fraud', methods=['POST'])
+@app.route('/predict/fraud/detailed', methods=['POST'])
 def predict_fraud():
-    data = request.get_json() or {}
-    locations = data.get('locations', [])
-    anomaly_score = compute_anomaly_score(locations)
-    is_suspicious = anomaly_score > 0.4
-
+    data = request.get_json(silent=True) or {}
+    
+    # ML Prediction
+    ml_result = compute_anomaly_score(data)
+    
+    # Simple Deduplication Logic
     claim_time = data.get('claim_time')
     existing_claims = data.get('existing_claim_times', [])
     is_duplicate = claim_time in existing_claims if claim_time else False
+    
+    if is_duplicate:
+        ml_result['is_suspicious'] = True
+        ml_result['signals'].append('Duplicate claim for same event window')
 
     return jsonify({
-        'anomaly_score': anomaly_score,
-        'is_suspicious': is_suspicious,
-        'is_duplicate': is_duplicate,
-        'fraud_type': 'gps_spoofing' if (is_suspicious and not is_duplicate) else 'duplicate' if is_duplicate else None,
-        'recommendation': 'manual_review' if is_suspicious else 'auto_approve',
+        'anomaly_score': ml_result['score'],
+        'is_suspicious': ml_result['is_suspicious'],
+        'signals': ml_result['signals'],
+        'recommendation': 'manual_review' if ml_result['is_suspicious'] else 'auto_approve',
     })
 
 
 @app.route('/predict/volume', methods=['GET', 'POST'])
 def predict_volume():
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     weather_forecast = data.get('weather_forecast', [
         {'day': i, 'rainfall_mm': random.uniform(0, 40)} for i in range(7)
     ])

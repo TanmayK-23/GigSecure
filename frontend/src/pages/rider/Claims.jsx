@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Search, Filter } from 'lucide-react';
 import { usePolicy } from '../../contexts/PolicyContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { useI18n } from '../../contexts/I18nContext';
 import { TRIGGER_ICONS } from '../../utils/mockData';
 
@@ -9,16 +10,23 @@ const TYPE_FILTERS = ['all', 'heavy_rain', 'platform_outage', 'curfew'];
 
 export default function Claims() {
   const { claims } = usePolicy();
+  const { user } = useAuth();
   const { t } = useI18n();
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
 
-  const filtered = claims.filter(c =>
+  const userZoneTrim = (user?.zone?.split('–')[1]?.trim() || 'Andheri West').toLowerCase().replace(' west', '');
+  const myClaims = claims.filter(c => {
+    const claimZone = (c.zone || '').toLowerCase();
+    return claimZone === userZoneTrim || claimZone.includes(userZoneTrim) || userZoneTrim.includes(claimZone);
+  });
+
+  const filtered = myClaims.filter(c =>
     (statusFilter === 'all' || c.payout_status === statusFilter) &&
     (typeFilter === 'all' || c.trigger_type === typeFilter)
   );
 
-  const totalPaid = claims.filter(c => c.payout_status === 'paid').reduce((s, c) => s + c.lost_income_amount, 0);
+  const totalPaid = myClaims.filter(c => c.payout_status === 'paid').reduce((s, c) => s + c.lost_income_amount, 0);
 
   return (
     <div className="page-content">
@@ -37,7 +45,7 @@ export default function Claims() {
           <div>
             <div className="text-muted text-sm mb-1">Claims Processed</div>
             <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--primary-light)' }}>
-              {claims.filter(c => c.payout_status === 'paid').length}
+              {myClaims.filter(c => c.payout_status === 'paid').length}
             </div>
           </div>
           <div>

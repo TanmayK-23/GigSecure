@@ -7,6 +7,8 @@ const policyRoutes = require('./routes/policies');
 const claimRoutes = require('./routes/claims');
 const triggerRoutes = require('./routes/triggers');
 const adminRoutes = require('./routes/admin');
+const payoutRoutes = require('./routes/payouts');
+const analyticsRoutes = require('./routes/analytics');
 
 const app = express();
 
@@ -27,6 +29,8 @@ app.use('/api/policies', policyRoutes);
 app.use('/api/claims', claimRoutes);
 app.use('/api/triggers', triggerRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/payouts', payoutRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 

@@ -6,7 +6,7 @@
 
   <br />
 
-  [![Live Demo](https://img.shields.io/badge/Demo-Live_Now-blueviolet?style=for-the-badge&logo=vercel)](https://gigsecure-weld.vercel.app)
+  [![Demo](https://img.shields.io/badge/Status-Phase_3_Complete-green?style=for-the-badge)](https://github.com/TanmayK-23/GigSecure)
 </div>
 
 ---
@@ -65,14 +65,15 @@ Instead of waiting for an accident and filing paperwork, GigSecure **automatical
    - Policy is active for 7 days.
 
 3. **Parametric Monitoring & Auto‑Claim**  
-   - System continuously listens to external APIs.  
+   - System continuously listens to external APIs via a dedicated Trigger Engine.  
+   - **Real-Time Synchronisation:** Uses `Socket.IO` to push instant claim alerts and payout confirmations to the rider's dashboard.
    - When a trigger condition is met (e.g., heavy rain in a zone for >30 min), it identifies all riders with active policies in that zone.  
    - Lost income is calculated as: `(rider’s average hourly earnings for that time slot) × (hours disrupted)`.  
    - A claim is created and payout is initiated **automatically** – rider receives a notification and the amount is credited.
 
 4. **Analytics & Insights**  
    - Riders see “Earnings Protected” dashboard: total payouts vs. premiums paid.  
-   - Admin dashboard shows loss ratio, predictive claim volume, fraud alerts, and trigger performance.
+   - Admin dashboard shows loss ratio, **ARIMA-based predictive volume**, fraud alerts, and trigger performance.
 
 ### Key Modules (Phase 2 Implementations)
 
@@ -91,10 +92,12 @@ Instead of waiting for an accident and filing paperwork, GigSecure **automatical
    - **Live Price Recalculation:** The UI updates instantly (debounced at 400ms) over websockets as the rider toggles their vehicle, zone, or adds "Peak Hour Boosters" — giving them total control and trust over their pricing.
    - **Transparent Breakdown:** Riders can see exactly what they're paying for (`Base ₹35 + Zone ₹10 + Weather ₹8 = ₹53`).
 
-4. **Claims Management**  
+4. **Claims & Payout Lifecycle (Phase 3 Updates)**  
    - **Zero-Touch Automation:** A backend `node-cron` orchestrator polls mock environmental APIs (rainfall, curfew, heat, platform outage, floods).
-   - **Idempotent Triggering:** Automatically flags events and creates payout claims strictly for riders located in affected zones with active policies. No subjective paperwork required by the rider.
-   - **Real-time Notifications:** Pushes instant notifications via `Socket.IO` to the frontend. Upon payout, riders get immersive visual cues (flying coins CSS animation) and an auditory ping (WebAudio chord), letting them know they are protected even in a storm.
+   - **Robust Payout Engine:** Implemented a formal `processing` → `paid`/`rejected` lifecycle with idempotent guards.
+   - **Hybrid Fraud Detection:** Combines XGBoost-style heuristics with an `Isolation Forest` ML model to catch GPS spoofers and syndicate attacks.
+   - **Real-time Notifications:** Pushes instant notifications via `Socket.IO`. Upon payout, riders get immersive visual cues (flying coins CSS animation) and an auditory ping (WebAudio chord).
+   - **Session Isolation:** Transitioned to `sessionStorage` for authentication, allowing Admin and Rider panels to run side-by-side in independent browser tabs.
 
 ### Parametric Triggers (Examples)
 
@@ -135,13 +138,10 @@ GigSecure embeds machine learning at three critical layers, each serving a disti
   - Adjust premium pricing dynamically for new policies (surge pricing)  
   - Manage treasury liquidity to ensure instant payouts
 
-### 3. Anomaly Detection for Fraud (Isolation Forest)
-
-- **Model:** Unsupervised Isolation Forest  
-- **Input:** GPS ping sequences (timestamp, latitude, longitude) of riders during claim‑relevant time windows  
-- **Features:** Speed between consecutive pings, deviation from historical route patterns, time of day consistency  
+- **Model:** Unsupervised Isolation Forest (Python Scikit-Learn)
+- **Features:** Max speed between pings, altitude variance (z-axis), gyroscope variance, concurrent claims, and weather data mismatch.  
 - **Output:** Anomaly Score (0–1)  
-- **Usage:** Any claim with anomaly score > threshold is flagged for manual admin review instead of auto‑payment.
+- **Usage:** Fraudulent attempts (like GPS spoofing or emulator-based syndicate attacks) are automatically flagged for Admin review. Rejected claims instantly trigger a "Claim Rejected" alert on the Rider's dashboard via WebSockets.
 
 ---
 
@@ -349,25 +349,23 @@ gigsecure/
   - Functional app with registration, policy purchase, automated claim on mock trigger, and payout.  
   - 2‑min demo video showcasing the end‑to‑end flow.
 
-### Phase 3: Scale & Optimise (Weeks 5‑6)
+### Phase 3: Scale & Optimise (Weeks 5‑6) [COMPLETED]
 *Theme: “Perfect for Your Worker”*
 
-- **Fraud Detection:**  
-  - Integrate Isolation Forest for GPS spoofing detection.  
-  - Add duplicate claim prevention logic.  
-  - Build admin queue for flagged claims.  
-- **Instant Payout:**  
-  - Integrate Razorpay test mode to simulate real‑time bank/wallet transfers.  
-- **Advanced Dashboards:**  
-  - Rider dashboard: earnings protected charts, coverage insights.  
-  - Admin dashboard: loss ratio, predictive claim volume (ARIMA), fraud alerts, trigger performance.  
-- **Polishing & Testing:**  
-  - Full responsive UI for both mobile and PC.  
-  - Bug fixes, performance optimisation.  
+- **Advanced Fraud Detection:**  
+  - **Deployed Isolation Forest** model on the Python ML service.
+  - Added multi-factor telemetry checks (GPS velocity, Altitude stability, Gyro variance).
+  - Implemented **Zone-wise filtering** in the Admin Fraud Pipeline.
+- **Robust State Management:**  
+  - Fixed "State Bleed" by switching to `sessionStorage` for Auth, enabling side-by-side demoing.
+  - Implemented `localStorage` persistence for Policy state to survive refreshes.
+- **Enhanced UX & Real-time Sync:**  
+  - Integrated `Socket.IO` events for `claim_rejected` and `payout_credited`.
+  - Added "Idempotent guards" to prevent duplicate toasts or multiple notifications for the same event.
 - **Final Deliverables:**  
-  - 5‑min demo video (trigger → auto‑claim → payout + fraud detection demo).  
-  - Final pitch deck (PDF) covering persona, AI architecture, business viability.  
-  - Source code with all features working.
+  - [x] 5‑min demo video (trigger → auto‑claim → payout + fraud detection demo).  
+  - [x] Final pitch deck (PDF) covering persona, AI architecture, business viability.  
+  - [x] Source code with all Phase 3 optimizations working.
 
 ---
 

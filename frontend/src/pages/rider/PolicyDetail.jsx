@@ -10,6 +10,7 @@ import { calcPremium, TRIGGER_ICONS } from '../../utils/mockData';
 function PaymentSheet({ premium, onPay, onClose }) {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [method, setMethod] = useState('upi'); // 'upi' or 'card'
 
   const pay = () => {
     setLoading(true);
@@ -33,25 +34,41 @@ function PaymentSheet({ premium, onPay, onClose }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box" onClick={e => e.stopPropagation()}>
         <h3 className="mb-4">Complete Payment</h3>
+        <div className="flex gap-2 mb-4" style={{ padding: 4, background: 'rgba(255,255,255,.05)', borderRadius: 8 }}>
+          <button className={`btn btn-sm ${method === 'upi' ? 'btn-secondary' : 'btn-ghost'}`} style={{ flex: 1 }} onClick={() => setMethod('upi')}>✅ UPI</button>
+          <button className={`btn btn-sm ${method === 'card' ? 'btn-secondary' : 'btn-ghost'}`} style={{ flex: 1 }} onClick={() => setMethod('card')}>💳 Card</button>
+        </div>
+
         <div style={{ background: 'var(--bg-secondary)', borderRadius: 12, padding: 16, marginBottom: 20 }}>
           <div className="flex items-center gap-2 mb-3">
             <div style={{ width: 24, height: 24, background: '#072654', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900, color: 'white' }}>R</div>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Razorpay Test Mode</span>
           </div>
-          <div className="input-group mb-3">
-            <label className="input-label">Card Number</label>
-            <input className="input-field" placeholder="4111 1111 1111 1111" defaultValue="4111 1111 1111 1111" />
-          </div>
-          <div className="flex gap-3">
-            <div className="input-group" style={{ flex: 1 }}>
-              <label className="input-label">Expiry</label>
-              <input className="input-field" placeholder="12/27" defaultValue="12/27" />
+          
+          {method === 'upi' ? (
+            <div className="input-group mb-3">
+              <label className="input-label">Enter UPI ID</label>
+              <input className="input-field" placeholder="rider@upi" defaultValue="rider@upi" />
+              <p className="text-xs text-muted mt-2">A payment request will be sent to your UPI app.</p>
             </div>
-            <div className="input-group" style={{ flex: 1 }}>
-              <label className="input-label">CVV</label>
-              <input className="input-field" placeholder="•••" defaultValue="123" />
-            </div>
-          </div>
+          ) : (
+            <>
+              <div className="input-group mb-3">
+                <label className="input-label">Card Number</label>
+                <input className="input-field" placeholder="4111 1111 1111 1111" defaultValue="4111 1111 1111 1111" />
+              </div>
+              <div className="flex gap-3">
+                <div className="input-group" style={{ flex: 1 }}>
+                  <label className="input-label">Expiry</label>
+                  <input className="input-field" placeholder="12/27" defaultValue="12/27" />
+                </div>
+                <div className="input-group" style={{ flex: 1 }}>
+                  <label className="input-label">CVV</label>
+                  <input className="input-field" placeholder="•••" defaultValue="123" />
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="flex justify-between mb-4" style={{ padding: '12px 0', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>

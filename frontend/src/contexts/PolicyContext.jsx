@@ -1,5 +1,6 @@
 import { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react';
 import { MOCK_POLICY, MOCK_CLAIMS } from '../utils/mockData';
+import { useAuth } from './AuthContext';
 
 const PolicyContext = createContext(null);
 
@@ -21,16 +22,26 @@ function policyReducer(state, action) {
     case 'SET_POLICY':
       return { ...state, active: action.payload };
     case 'ADD_CLAIM':
+      if (state.claims.some(c => c.id === action.payload.id)) return state;
       return { ...state, claims: [action.payload, ...state.claims] };
     case 'TRIGGER_STARTED':
       return { ...state, triggerInProgress: action.payload };
     case 'TRIGGER_RESOLVED':
       return { ...state, triggerInProgress: null };
-    case 'ADD_NOTIFICATION':
+    case 'ADD_NOTIFICATION': {
+      let isDuplicate = false;
+      if (action.payload.claim_id) {
+        isDuplicate = state.notifications.some(n => n.claim_id === action.payload.claim_id);
+      } else {
+        isDuplicate = state.notifications.some(n => n.text === action.payload.text && (Date.now() - n.id) < 10000);
+      }
+      if (isDuplicate) return state;
+
       return {
         ...state,
         notifications: [{ ...action.payload, read: false, id: Date.now() }, ...state.notifications],
       };
+    }
     case 'MARK_READ':
       return {
         ...state,
@@ -40,13 +51,39 @@ function policyReducer(state, action) {
       return { ...state, liveToast: action.payload };
     case 'HIDE_TOAST':
       return { ...state, liveToast: null };
+    case 'UPDATE_CLAIM':
+      return { ...state, claims: state.claims.map(c => c.id === action.payload.id ? action.payload : c) };
     default:
       return state;
   }
 }
 
 export function PolicyProvider({ children }) {
-  const [state, dispatch] = useReducer(policyReducer, initialState);
+  const { user, isAdmin } = useAuth();
+  const userRef = useRef(user);
+  const adminRef = useRef(isAdmin);
+
+  useEffect(() => {
+    userRef.current = user;
+    adminRef.current = isAdmin;
+  }, [user, isAdmin]);
+
+  const [state, dispatch] = useReducer(policyReducer, initialState, (initial) => {
+    try {
+      const saved = localStorage.getItem('gs_policy_state');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Refresh active policy end date if it is outdated, just to ensure good UX
+        return parsed;
+      }
+    } catch (e) {}
+    return initial;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('gs_policy_state', JSON.stringify(state));
+  }, [state]);
+
   const socketRef = useRef(null);
 
   // Initialize Socket.IO connection via lazy dynamic import
@@ -65,15 +102,57 @@ export function PolicyProvider({ children }) {
           console.log('[Socket.IO] Connected to backend');
         });
 
+        const checkRiderZoneMatch = (zoneStr) => {
+          if (adminRef.current || !userRef.current) return false;
+          const uZone = (userRef.current?.zone?.split('–')[1]?.trim() || 'Andheri West').toLowerCase().replace(' west', '');
+          const cZone = (zoneStr || '').toLowerCase();
+          return cZone === uZone || cZone.includes(uZone) || uZone.includes(cZone);
+        };
+
         socket.on('new_claim', (claim) => {
           console.log('[Socket.IO] New claim received:', claim);
           dispatch({ type: 'ADD_CLAIM', payload: claim });
-          dispatch({
-            type: 'ADD_NOTIFICATION',
-            payload: { text: `Claim ₹${claim.lost_income_amount} auto-processed – ${claim.reason || claim.trigger_type}` },
-          });
-          dispatch({ type: 'SHOW_TOAST', payload: claim });
-          setTimeout(() => dispatch({ type: 'HIDE_TOAST' }), 5000);
+          
+          if (checkRiderZoneMatch(claim.zone)) {
+            if (!claim.fraud_flag && claim.payout_status === 'processing') {
+              dispatch({ type: 'SHOW_TOAST', payload: claim });
+            } else if (claim.fraud_flag) {
+              dispatch({
+                type: 'ADD_NOTIFICATION',
+                payload: { text: `Claim ₹${claim.lost_income_amount} flagged for review – ${claim.reason}`, claim_id: claim.id },
+              });
+            }
+          }
+        });
+
+        socket.on('payout_credited', ({ claim, receipt }) => {
+          console.log('[Socket.IO] Payout Credited:', receipt.utr);
+          dispatch({ type: 'UPDATE_CLAIM', payload: claim });
+          
+          if (checkRiderZoneMatch(claim.zone)) {
+            dispatch({ type: 'SHOW_TOAST', payload: claim });
+            dispatch({
+              type: 'ADD_NOTIFICATION',
+              payload: { text: `Payout ₹${claim.lost_income_amount} credited (UTR: ${receipt.utr})`, claim_id: claim.id + '_payout' },
+            });
+            setTimeout(() => dispatch({ type: 'HIDE_TOAST' }), 5000);
+          }
+        });
+
+        socket.on('claim_rejected', (claim) => {
+          console.log('[Socket.IO] Claim rejected:', claim.id);
+          dispatch({ type: 'UPDATE_CLAIM', payload: claim });
+          
+          if (checkRiderZoneMatch(claim.zone)) {
+            dispatch({
+              type: 'ADD_NOTIFICATION',
+              payload: { text: `Claim ₹${claim.lost_income_amount} was rejected after review.`, claim_id: claim.id + '_reject' },
+            });
+          }
+        });
+
+        socket.on('fraud_alert', (claim) => {
+          console.log('[Socket.IO] Fraud alert received:', claim);
         });
 
         socket.on('trigger_alert', ({ trigger }) => {
@@ -121,7 +200,7 @@ export function PolicyProvider({ children }) {
           dispatch({ type: 'ADD_CLAIM', payload: { ...claim, reason: data.trigger?.reason } });
           dispatch({
             type: 'ADD_NOTIFICATION',
-            payload: { text: `Claim ₹${claim.lost_income_amount} processed – ${data.trigger?.reason || type}` },
+            payload: { text: `Claim ₹${claim.lost_income_amount} processed – ${data.trigger?.reason || type}`, claim_id: claim.id },
           });
         }
         dispatch({ type: 'SHOW_TOAST', payload: data.claims[0] });
@@ -154,7 +233,7 @@ export function PolicyProvider({ children }) {
       };
       setTimeout(() => {
         dispatch({ type: 'ADD_CLAIM', payload: claim });
-        dispatch({ type: 'ADD_NOTIFICATION', payload: { text: `Claim ₹${t.amount} processed – ${t.reason}` } });
+        dispatch({ type: 'ADD_NOTIFICATION', payload: { text: `Claim ₹${t.amount} processed – ${t.reason}`, claim_id: claim.id } });
         dispatch({ type: 'SHOW_TOAST', payload: claim });
         setTimeout(() => dispatch({ type: 'HIDE_TOAST' }), 5000);
       }, 2000);

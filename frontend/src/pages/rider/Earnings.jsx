@@ -7,7 +7,6 @@ import {
 import { Bar, Line } from 'react-chartjs-2';
 import { useI18n } from '../../contexts/I18nContext';
 import { usePolicy } from '../../contexts/PolicyContext';
-import { MOCK_EARNINGS_CHART } from '../../utils/mockData';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, Filler);
 
@@ -26,9 +25,18 @@ export default function Earnings() {
   const { claims } = usePolicy();
 
   // Build chart from actual claims
-  const weeks = ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6'];
-  const payouts = MOCK_EARNINGS_CHART.payouts;
-  const premiums = MOCK_EARNINGS_CHART.premiums;
+  const weeks = ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'This Week'];
+  const payouts = [0, 246, 0, 0, 123, 0];
+  const premiums = [49, 59, 49, 79, 79, 79];
+  
+  // Calculate this week's payouts dynamically based on actual claims hook
+  const thisWeekPayouts = claims
+    .filter(c => c.payout_status === 'paid')
+    .reduce((s, c) => s + c.lost_income_amount, 0);
+
+  // We override the last slot with the live data
+  payouts[5] = thisWeekPayouts;
+  
   const totalProtected = payouts.reduce((s, v) => s + v, 0);
   const totalPremiums = premiums.reduce((s, v) => s + v, 0);
   const roiPercent = Math.round(((totalProtected - totalPremiums) / totalPremiums) * 100);

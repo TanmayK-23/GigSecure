@@ -1,15 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale, LinearScale, BarElement, LineElement,
   PointElement, Title, Tooltip, Legend, Filler, ArcElement
 } from 'chart.js';
 import { Bar, Line, Doughnut } from 'react-chartjs-2';
-import { Users, Shield, TrendingDown, AlertTriangle, CheckCircle, XCircle, UserX, Zap, Send } from 'lucide-react';
+import { Users, Shield, TrendingDown, AlertTriangle, CheckCircle, XCircle, UserX, Zap, Send, Activity, Settings } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import {
-  MOCK_ADMIN_METRICS, MOCK_FRAUD_CLAIMS, MOCK_TRIGGER_EVENTS,
-  MOCK_PREDICTIVE_CHART, MOCK_TRIGGER_PERFORMANCE, TRIGGER_ICONS
+  MOCK_TRIGGER_EVENTS, MOCK_TRIGGER_PERFORMANCE, TRIGGER_ICONS
 } from '../../utils/mockData';
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
@@ -96,19 +95,13 @@ function TriggerControlPanel() {
   );
 }
 
-function FraudTable() {
-  const [rows, setRows] = useState(MOCK_FRAUD_CLAIMS);
-
-  const action = (id, action) => {
-    setRows(r => r.map(row => row.id === id ? { ...row, status: action } : row));
-  };
-
+function FraudTable({ rows, onAction }) {
   const statusBadge = (s) => {
     const map = {
-      pending: 'badge-warning',
+      pending_review: 'badge-warning',
       auto_rejected: 'badge-danger',
       suspended: 'badge-danger',
-      approved: 'badge-success',
+      paid: 'badge-success',
       rejected: 'badge-muted',
     };
     return <span className={`badge ${map[s] || 'badge-muted'} text-xs`}>{s.replace('_', ' ')}</span>;
@@ -119,10 +112,10 @@ function FraudTable() {
       <table className="gs-table">
         <thead>
           <tr>
-            <th>Rider</th>
-            <th>Trigger</th>
+            <th>Rider / Claim ID</th>
+            <th>Type</th>
             <th>Amount</th>
-            <th>Flag Reason</th>
+            <th>ML Fraud Signals</th>
             <th>Status</th>
             <th>Actions</th>
           </tr>
@@ -131,27 +124,30 @@ function FraudTable() {
           {rows.map(row => (
             <tr key={row.id}>
               <td>
-                <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{row.rider}</div>
-                <div className="text-xs text-muted">{row.phone}</div>
+                <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{row.user_id}</div>
+                <div className="text-xs text-muted">{row.id}</div>
               </td>
-              <td><span className="text-sm">{row.trigger}</span></td>
-              <td><span style={{ fontWeight: 700, color: 'var(--accent-light)' }}>₹{row.amount}</span></td>
               <td>
-                <span style={{ fontSize: '0.75rem', color: 'var(--danger-light)' }}>
-                  ⚠️ {row.flag_reason}
-                </span>
+                <span className="text-sm">{row.trigger_type}</span>
+                <div className="text-xs text-muted" style={{ marginTop: 2 }}>{row.zone}</div>
               </td>
-              <td>{statusBadge(row.status)}</td>
+              <td><span style={{ fontWeight: 700, color: 'var(--accent-light)' }}>₹{row.lost_income_amount}</span></td>
               <td>
-                {row.status === 'pending' ? (
+                <div style={{ fontSize: '0.75rem', color: 'var(--danger-light)', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {row.fraud_signals?.map((s, i) => <span key={i}>⚠️ {s}</span>)}
+                </div>
+              </td>
+              <td>{statusBadge(row.payout_status)}</td>
+              <td>
+                {row.payout_status === 'pending_review' ? (
                   <div className="flex gap-1">
-                    <button className="btn btn-sm btn-secondary" style={{ padding: '4px 10px', fontSize: '0.7rem' }} onClick={() => action(row.id, 'approved')} title="Approve">
-                      <CheckCircle size={12} /> Approve
+                    <button className="btn btn-sm btn-secondary" style={{ padding: '4px 10px', fontSize: '0.7rem' }} onClick={() => onAction(row.id, 'approve')} title="Approve">
+                      <CheckCircle size={12} />
                     </button>
-                    <button className="btn btn-sm btn-danger" style={{ padding: '4px 10px', fontSize: '0.7rem' }} onClick={() => action(row.id, 'rejected')} title="Reject">
-                      <XCircle size={12} /> Reject
+                    <button className="btn btn-sm btn-danger" style={{ padding: '4px 10px', fontSize: '0.7rem' }} onClick={() => onAction(row.id, 'reject')} title="Reject">
+                      <XCircle size={12} />
                     </button>
-                    <button className="btn btn-sm" style={{ padding: '4px 10px', fontSize: '0.7rem', background: 'rgba(239,68,68,.08)', color: 'var(--danger-light)', border: '1px solid rgba(239,68,68,.2)' }} onClick={() => action(row.id, 'suspended')} title="Suspend User">
+                    <button className="btn btn-sm" style={{ padding: '4px 10px', fontSize: '0.7rem', background: 'rgba(239,68,68,.08)', color: 'var(--danger-light)', border: '1px solid rgba(239,68,68,.2)' }} onClick={() => onAction(row.id, 'suspend')} title="Suspend User">
                       <UserX size={12} />
                     </button>
                   </div>
@@ -169,29 +165,58 @@ function FraudTable() {
 
 export default function AdminDashboard() {
   const { user } = useAuth();
-  const m = MOCK_ADMIN_METRICS;
+  
+  const [m, setMetrics] = useState(null);
+  const [predictions, setPredictions] = useState(null);
+  const [zones, setZones] = useState([]);
+  const [fraudClaims, setFraudClaims] = useState([]);
+  const [fraudZoneFilter, setFraudZoneFilter] = useState('All');
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [mRes, pRes, zRes, fRes] = await Promise.all([
+          fetch(`${BACKEND_URL}/api/analytics/metrics`),
+          fetch(`${BACKEND_URL}/api/analytics/predictions`),
+          fetch(`${BACKEND_URL}/api/analytics/zone-heatmap`),
+          fetch(`${BACKEND_URL}/api/analytics/fraud-stats`)
+        ]);
+        setMetrics(await mRes.json());
+        setPredictions(await pRes.json());
+        setZones((await zRes.json()).zones || []);
+        setFraudClaims((await fRes.json()).fraud_claims || []);
+      } catch (err) {
+        console.error("Failed loading analytics", err);
+      }
+    };
+    fetchData();
+    const interval = setInterval(fetchData, 10000); // Live poll
+    return () => clearInterval(interval);
+  }, []);
+
+  if (!m) return <div className="page-content flex justify-center items-center"><span className="spinner" /></div>;
 
   const lossRatioPct = Math.round(m.loss_ratio * 100);
 
   const topMetrics = [
-    { icon: Users, label: 'Total Riders', value: m.total_riders.toLocaleString(), change: '+143 this week', up: true },
-    { icon: Shield, label: 'Active Policies', value: m.active_policies.toLocaleString(), change: `${Math.round((m.active_policies/m.total_riders)*100)}% activation rate`, up: true },
+    { icon: Users, label: 'Total Riders', value: m.total_riders.toLocaleString(), change: `+${m.new_signups_week} this week`, up: true },
+    { icon: Shield, label: 'Active Policies', value: m.active_policies.toLocaleString(), change: 'Protected right now', up: true },
     { icon: Zap, label: 'Payouts (7d)', value: `₹${(m.total_payouts_week / 1000).toFixed(1)}K`, change: `Loss ratio: ${lossRatioPct}%`, up: false },
-    { icon: AlertTriangle, label: 'Fraud Alerts', value: m.fraud_flagged.toString(), change: '3 pending review', up: false },
+    { icon: AlertTriangle, label: 'Fraud Alerts', value: m.fraud_flagged.toString(), change: 'ML Detection Pipeline', up: false },
   ];
 
   const predictiveData = {
-    labels: MOCK_PREDICTIVE_CHART.labels,
+    labels: predictions?.predictions?.map(p => `Day ${p.day}`) || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
     datasets: [{
       label: 'Predicted Claims',
-      data: MOCK_PREDICTIVE_CHART.predicted_claims,
+      data: predictions?.predictions?.map(p => p.predicted_claims) || [0,0,0,0,0,0,0],
       borderColor: '#6C47FF',
       backgroundColor: 'rgba(108,71,255,.1)',
       fill: true,
       tension: 0.4,
-      pointBackgroundColor: MOCK_PREDICTIVE_CHART.risk_level.map(r =>
-        r === 'high' ? '#EF4444' : r === 'medium' ? '#F59E0B' : '#10B981'
-      ),
+      pointBackgroundColor: predictions?.predictions?.map(p =>
+        p.risk_level === 'high' ? '#EF4444' : p.risk_level === 'medium' ? '#F59E0B' : '#10B981'
+      ) || '#6C47FF',
       pointRadius: 5,
     }],
   };
@@ -209,10 +234,22 @@ export default function AdminDashboard() {
   const lossRatioData = {
     labels: ['Payouts', 'Margin'],
     datasets: [{
-      data: [lossRatioPct, 100 - lossRatioPct],
+      data: [lossRatioPct, Math.max(0, 100 - lossRatioPct)],
       backgroundColor: ['#EF4444', 'rgba(108,71,255,.3)'],
       borderWidth: 0,
     }],
+  };
+
+  const handleFraudAction = async (id, action) => {
+    try {
+      await fetch(`${BACKEND_URL}/api/admin/fraud/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+      });
+      // Updating UI optimistically
+      setFraudClaims(prev => prev.map(c => c.id === id ? { ...c, payout_status: action === 'approve' ? 'paid' : 'rejected' } : c));
+    } catch {}
   };
 
   return (
@@ -256,8 +293,8 @@ export default function AdminDashboard() {
             <Line data={predictiveData} options={{ ...chartOpts, plugins: { ...chartOpts.plugins, legend: { display: false } } }} />
           </div>
         </div>
-        <div className="card text-center">
-          <h4 className="mb-1">Loss Ratio</h4>
+          <div className="card text-center">
+          <h4 className="mb-1">💸 Weekly P&L & Loss Ratio</h4>
           <p className="text-xs text-muted mb-4">Total payouts / premiums</p>
           <div style={{ height: 160, position: 'relative', margin: '0 auto', maxWidth: 160 }}>
             <Doughnut data={lossRatioData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, cutout: '75%' }} />
@@ -270,7 +307,44 @@ export default function AdminDashboard() {
             <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
               ₹{(m.total_payouts_week / 1000).toFixed(1)}K paid / ₹{(m.premiums_collected_week / 1000).toFixed(1)}K collected
             </div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--success-light)', marginTop: 4 }}>
+              Net Capital Protected: ₹{((m.premiums_collected_week - m.total_payouts_week) / 1000).toFixed(1)}K
+            </div>
           </div>
+        </div>
+      </div>
+
+      {/* Zone Heatmap & Exposure */}
+      <div className="card mb-6">
+        <h4 className="mb-1">🗺️ Granular Zone Exposure & Pricing</h4>
+        <p className="text-xs text-muted mb-4">Real-time risk scoring and premium adjustments by microlocations</p>
+        <div style={{ overflowX: 'auto' }}>
+          <table className="gs-table" style={{ fontSize: '0.875rem' }}>
+            <thead>
+              <tr>
+                <th>Zone Name</th>
+                <th>Live Risk Score</th>
+                <th>Active Coverage</th>
+                <th>7-Day Triggers</th>
+                <th>Avg Payout</th>
+              </tr>
+            </thead>
+            <tbody>
+              {zones.map(z => (
+                <tr key={z.name}>
+                  <td style={{ fontWeight: 600 }}>{z.name}</td>
+                  <td>
+                    <span className={`badge badge-${z.risk === 'high' ? 'danger' : z.risk === 'medium' ? 'warning' : 'success'} text-xs px-2`}>
+                      {z.score}/100
+                    </span>
+                  </td>
+                  <td>{z.active_policies} riders</td>
+                  <td style={{ color: z.events_last_7d > 10 ? 'var(--danger-light)' : 'inherit' }}>{z.events_last_7d} events</td>
+                  <td style={{ fontWeight: 600 }}>₹{z.avg_payout}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -283,16 +357,40 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Fraud Alerts */}
+      {/* Fraud Pipeline */}
       <div className="card mb-6">
         <div className="flex justify-between items-center mb-4">
           <div>
-            <h4 className="mb-1">🚨 Fraud Alerts</h4>
-            <p className="text-xs text-muted">Flagged claims requiring manual review</p>
+            <h4 className="mb-1">🚨 ML Fraud Detection Pipeline</h4>
+            <p className="text-xs text-muted">Isolation Forest + Anomaly Scoring — Live processing telemetry vs GPS spoofers</p>
           </div>
-          <span className="badge badge-danger">{MOCK_FRAUD_CLAIMS.filter(f => f.status === 'pending').length} Pending</span>
+          <div className="flex gap-3">
+            <select className="input-field" style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto', background: 'rgba(255,255,255,.05)' }} value={fraudZoneFilter} onChange={e => setFraudZoneFilter(e.target.value)}>
+              <option value="All">🌍 All Zones</option>
+              <option value="Andheri West">Andheri West</option>
+              <option value="Kurla">Kurla</option>
+              <option value="Dharavi">Dharavi</option>
+              <option value="Bandra">Bandra</option>
+              <option value="Powai">Powai</option>
+            </select>
+            <span className="badge badge-danger" style={{ display: 'flex', alignItems: 'center' }}>
+              {fraudClaims.filter(f => f.payout_status === 'pending_review' && (fraudZoneFilter === 'All' || f.zone === fraudZoneFilter)).length} Pending
+            </span>
+          </div>
         </div>
-        <FraudTable />
+        
+        {/* Visual Pipeline */}
+        <div className="flex justify-between items-center mb-6 px-4" style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: 8, gap: 8 }}>
+          <div className="text-center" style={{ flex: 1 }}><Activity size={24} color="var(--primary-light)" style={{ margin: '0 auto 8px' }} /><div className="text-xs">Trigger Detected</div></div>
+          <div style={{ height: 2, background: 'var(--border)', flex: 1 }} />
+          <div className="text-center" style={{ flex: 1 }}><Settings size={24} color="var(--accent-light)" className="spinner" style={{ margin: '0 auto 8px', animation: 'spin 4s linear infinite' }} /><div className="text-xs">ML Telemetry Check</div></div>
+          <div style={{ height: 2, background: 'var(--border)', flex: 1 }} />
+          <div className="text-center" style={{ flex: 1 }}><CheckCircle size={24} color="var(--success-light)" style={{ margin: '0 auto 8px' }} /><div className="text-xs">92% Auto-Approved</div></div>
+          <div style={{ height: 2, background: 'rgba(239,68,68,.3)', flex: 1 }} />
+          <div className="text-center" style={{ flex: 1 }}><AlertTriangle size={24} color="var(--danger-light)" style={{ margin: '0 auto 8px' }} /><div className="text-xs">8% Flagged</div></div>
+        </div>
+
+        <FraudTable rows={fraudClaims.filter(c => fraudZoneFilter === 'All' || c.zone === fraudZoneFilter || (c.zone?.includes(fraudZoneFilter)))} onAction={handleFraudAction} />
       </div>
 
       {/* Recent Trigger Events */}

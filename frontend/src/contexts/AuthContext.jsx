@@ -31,7 +31,7 @@ function authReducer(state, action) {
 
 export function AuthProvider({ children }) {
   const [state, dispatch] = useReducer(authReducer, initialState, () => {
-    const saved = localStorage.getItem('gs_auth');
+    const saved = sessionStorage.getItem('gs_auth');
     if (saved) {
       try { return JSON.parse(saved); }
       catch { return initialState; }
@@ -40,7 +40,7 @@ export function AuthProvider({ children }) {
   });
 
   useEffect(() => {
-    localStorage.setItem('gs_auth', JSON.stringify(state));
+    sessionStorage.setItem('gs_auth', JSON.stringify(state));
   }, [state]);
 
   const login = (phone, isAdmin = false) => {
@@ -54,7 +54,7 @@ export function AuthProvider({ children }) {
   };
 
   const updateUser = (data) => dispatch({ type: 'UPDATE_USER', payload: data });
-  const logout = () => { localStorage.removeItem('gs_auth'); dispatch({ type: 'LOGOUT' }); };
+  const logout = () => { sessionStorage.removeItem('gs_auth'); dispatch({ type: 'LOGOUT' }); };
 
   return (
     <AuthContext.Provider value={{ ...state, login, updateUser, logout }}>
